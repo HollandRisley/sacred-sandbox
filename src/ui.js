@@ -525,6 +525,15 @@ export function buildUI(onChange, onLayout, store) {
   ai.querySelector('#askgo').addEventListener('click', run);
   ai.querySelector('#ask').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
 
+  // The description is hidden behind the ⓘ on a phone, where it would otherwise
+  // take a quarter of the screen away from the piece. The button does not exist
+  // on desktop, where the blurb is always shown, so the wiring is harmless there.
+  const info = document.getElementById('rinfo');
+  info.addEventListener('click', () => {
+    const open = document.body.classList.toggle('info-open');
+    info.setAttribute('aria-expanded', String(open));
+  });
+
   document.getElementById('toggle').addEventListener('click', () => {
     document.body.classList.toggle('panel-open');
     onLayout();

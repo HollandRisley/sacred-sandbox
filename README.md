@@ -432,6 +432,15 @@ panel is open, so a restored value would just be overwritten.
 **Visible** sits at the top and is sticky: nine chips, one per element. That is
 the first thing to reach for — most compositions are about what you turn *off*.
 
+On a phone the readout shrinks to a 15px label and the description goes behind
+the ⓘ beside it, taking the header from about 97px to 24px. A caption a quarter
+the height of the screen is competing with the artwork rather than serving it,
+and on a device that is mostly canvas the piece should be what is on screen
+until something else is asked for. Desktop is unchanged — the button is not
+rendered there and the description always shows, including when the phone's
+open/closed state is still set, so resizing or rotating can never strand the
+text hidden.
+
 The panel reports the lattice instance count at the bottom, and says so plainly
 when Lattice × Echoes × Emanation exceeds the 1500-instance ceiling and geometry
 is being dropped. It does not silently truncate.
