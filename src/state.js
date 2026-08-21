@@ -37,10 +37,13 @@ export const state = {
   extent: 2,
   echoes: 1,
   wrap: 0.4,        // 0 = flat plane, 1 = wrapped onto the sphere
+  wrapSpread: 1.42, // sphere coverage; 1.42 puts the shell's centroid on the origin
   radius: 1,
   layers: 0,
   spin: 0.05,
   nodeSize: 0.11,
+  nodeLook: 0,          // 0 glow (edgeless), 1 pearl, 2 matter
+  nodeGlowSpread: 1,    // how far the glow reaches past the node
 
   // Singularity — the Hopf core
   fibres: 9,

@@ -45,12 +45,17 @@ const SPEC = [
     // as the circles themselves, so it stays while any of those are showing.
     when: (s) => s.showRings || s.showNodes || s.showJoins,
     controls: [
-      { key: 'wrap', label: 'Sphere wrap', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'flat plane' : v > 0.995 ? 'full sphere' : v.toFixed(2)) },
+      { key: 'wrap', label: 'Sphere wrap', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'flat plane' : v > 0.995 ? 'wrapped' : v.toFixed(2)) },
+      { key: 'wrapSpread', label: 'Coverage', min: 0.5, max: 4, step: 0.01, when: (s) => s.wrap > 0.005, read: (v) => `${Math.round((1 - (1 - v * v) / (1 + v * v)) / 2 * 100)}% of the sphere` },
       { key: 'stage', label: 'Stage', min: 1, max: 8, step: 0.01, read: (v) => stageAt(v).name },
       { key: 'extent', label: 'Lattice', min: 2, max: 4, step: 1, read: (v) => `${CIRCLE_COUNT[v]} circles` },
       { key: 'echoes', label: 'Echoes', min: 1, max: 6, step: 1, read: (v) => (v === 1 ? 'single' : `${v}-fold moiré`) },
       { key: 'layers', label: '3D depth', min: 0, max: 3, step: 1, read: (v) => (v === 0 ? 'flat' : `${v * 2 + 1} layers`) },
       { key: 'nodeSize', label: 'Node spheres', min: 0, max: 0.55, step: 0.005 },
+      // Glow is a billboard, so it has no silhouette and no highlight — which is
+      // the difference between reading as energy and reading as a bubble.
+      { key: 'nodeLook', label: 'Node surface', min: 0, max: 2, step: 1, read: (v) => ['Glow — edgeless light', 'Pearl — translucent bubble', 'Matter — solid, sorts correctly'][v] },
+      { key: 'nodeGlowSpread', label: 'Glow spread', min: 0.3, max: 3, step: 0.01, when: (s) => Math.round(s.nodeLook) === 0 },
       { key: 'mapToMetatron', label: 'Map onto Metatron', type: 'toggle' },
       { key: 'nodeSolid', label: 'Solid at each node', min: 0, max: 5, step: 1, read: (v) => SOLIDS[v].name },
       { key: 'nodeSolidSize', label: 'Node solid size', min: 0.1, max: 1.5, step: 0.01 },

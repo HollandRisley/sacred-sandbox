@@ -79,10 +79,12 @@ export function wrapToSphere(p, amount, sphereR, k, normal) {
   const sz = (1 - r2) / d;
   if (normal) normal.set(sx, sy, sz);
 
-  _target.set(sx * sphereR, sy * sphereR, sz * sphereR);
-  // Depth offset of the flat figure is preserved as height above the shell, so
-  // the stacked 3D lattice still reads as layers once wrapped.
-  _target.z += p.z;
+  // Depth in the flat figure becomes height along the *normal*, not along world
+  // z. Adding it to z instead slid the entire shell sideways — at three layers
+  // that was an offset of 96% of the sphere's own radius, which is why the
+  // wrapped figure sat off to one side of everything else instead of sharing
+  // its centre. Radially, the stacked layers become concentric shells.
+  _target.set(sx, sy, sz).multiplyScalar(sphereR + p.z);
   p.lerp(_target, amount);
 
   const conformal = (k * sphereR * 2) / d;

@@ -62,12 +62,14 @@ export function pearlMaterial(opacity = 0.5) {
     // reflection completely and every surface comes out one flat hue. Holding
     // it near half lets the environment's own colours through, which is what
     // makes the thin-film shift visible as the surface turns.
-    metalness: 0.5,
-    roughness: 0.14,
+    metalness: 0.42,
+    // Rougher than a mirror on purpose: at 0.14 the specular collapsed to a hard
+    // glint on a glassy shell, which is most of what made these read as bubbles.
+    roughness: 0.34,
     iridescence: 1,
     iridescenceIOR: 1.85,
     iridescenceThicknessRange: [180, 860],
-    envMapIntensity: 2.2,
+    envMapIntensity: 1.7,
     transparent: true,
     opacity,
     // Normal blending, unlike the linework: a translucent solid has twenty

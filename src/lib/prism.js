@@ -57,13 +57,51 @@ function spectrumTexture(size = 128) {
   return tex;
 }
 
-let sharedTexture = null;
+/**
+ * A plain soft corona — no spectrum, just a core falling smoothly to nothing.
+ *
+ * This is what a point of light actually looks like: no silhouette anywhere. A
+ * sphere mesh, however translucent, always has a hard edge where its outline
+ * meets the void, and a specular highlight sitting on it — which is why it reads
+ * as a bubble rather than as energy. A billboard has no edge to give away.
+ */
+function softTexture(size = 128) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  const half = size / 2;
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const t = Math.hypot((x - half) / half, (y - half) / half);
+      const i = (y * size + x) * 4;
+      if (t > 1) { img.data[i + 3] = 0; continue; }
+      // Two falloffs summed: a tight core for presence, a wide skirt for the
+      // haze. A single curve gives either a hard dot or a formless smudge.
+      const core = Math.exp(-(t * t) * 26);
+      const skirt = (1 - t) ** 2.6;
+      const a = Math.min(core + skirt * 0.55, 1);
+      img.data[i] = 255;
+      img.data[i + 1] = 255;
+      img.data[i + 2] = 255;
+      img.data[i + 3] = Math.round(a * 255);
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const shared = { prism: null, soft: null };
 
 export class PrismHalo extends THREE.InstancedMesh {
-  constructor(max) {
-    if (!sharedTexture) sharedTexture = spectrumTexture();
+  constructor(max, kind = 'prism') {
+    if (!shared[kind]) shared[kind] = kind === 'soft' ? softTexture() : spectrumTexture();
     const material = new THREE.MeshBasicMaterial({
-      map: sharedTexture,
+      map: shared[kind],
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,

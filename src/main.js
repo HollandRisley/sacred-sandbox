@@ -154,7 +154,12 @@ lampB.position.set(-7, -4, 4);
 // Lamps travel with the world so the pearl highlights hold as it is scaled.
 world.add(lampA, lampB, new THREE.AmbientLight(0xffffff, 0.12));
 
-const nodeSpheres = new SphereField(MAX_NODES, { material: pearlMaterial(0.6), segments: [16, 10] });
+// Three surfaces for the lattice nodes. Glow is a billboard rather than a mesh:
+// a sphere always has a silhouette and a specular highlight sitting on it, which
+// is what makes it read as a bubble instead of as energy.
+const NODE_MATS = [pearlMaterial(0.6), matterMaterial()];
+const nodeSpheres = new SphereField(MAX_NODES, { material: NODE_MATS[0], segments: [16, 10] });
+const nodeGlow = new PrismHalo(MAX_NODES, 'soft');
 const rings = new RingField(MAX_NODES, { tube: 0.012, segments: 56 });
 const ringHalo = new RingField(MAX_NODES, { tube: 0.05, segments: 20, opacity: 0.07 });
 // The two bounding rings are three times the radius of a lattice circle, so at
@@ -174,7 +179,7 @@ const nodeSolids = new THREE.InstancedMesh(
 nodeSolids.frustumCulled = false;
 nodeSolids.count = 0;
 nodeSolids.setColorAt(0, new THREE.Color(0xffffff));
-rig.add(ringHalo, rings, boundRings, nodeSpheres, nodeSolids, eggs);
+rig.add(ringHalo, rings, boundRings, nodeGlow, nodeSpheres, nodeSolids, eggs);
 
 // 25 points at full 4D means 300 pairs, not the flat figure's 78.
 const MAX_JOIN_EDGES = 300;
@@ -346,6 +351,7 @@ function applyLook() {
   const wash = Math.min(0.2 + state.sheen * 0.32, 0.85);
   _pearlTint.copy(palette.ring).lerp(WHITE, wash);
   nodeSpheres.baseColor.copy(_pearlTint);
+  nodeGlow.material.opacity = state.glow;
   eggs.baseColor.copy(_pearlTint);
   phylloSpheres.baseColor.copy(_pearlTint2.copy(palette.solid).lerp(WHITE, wash));
 
@@ -379,7 +385,8 @@ function applyLook() {
   tetherLines.setOpacity(g * 0.45, state.halo * 0.6, g * 0.7);
 
   for (const m of [nodeSpheres.material, eggs.material, polyVerts.material,
-    solidFaces.material, phylloSpheres.material, EM_MATS[0], EM_MATS[1]]) {
+    solidFaces.material, phylloSpheres.material, EM_MATS[0], EM_MATS[1],
+    NODE_MATS[1]]) {
     m.iridescence = Math.min(state.sheen, 1);
     m.envMapIntensity = 1.2 + state.sheen * 1.4;
   }
@@ -497,7 +504,14 @@ function rebuildLattice() {
   const shellCount = Math.max(shells, 1);
   const wrap = state.wrap;
   const sphereR = outerR * 0.85;
-  const k = 1 / outerR;
+  // Coverage: how far up the sphere the figure reaches. Scaled against the
+  // outermost *node*, not the bounding radius — the lattice only fills about
+  // two thirds of `outerR`, so measuring against that made the control mean
+  // something different at every Lattice setting. At 1 the outermost ring lands
+  // on the equator (a hemisphere of nodes, mass sitting above the origin);
+  // it balances near 1.6, and higher wraps round toward the south pole.
+  const nodeReach = Math.max(extent * fittedR, 1e-6);
+  const k = state.wrapSpread / nodeReach;
 
   nodes.length = 0;
   primaryNodes.length = 0;
@@ -678,7 +692,24 @@ function paintLattice() {
   haloList.length = 0;
   if (state.halo > 0.004 && wantRings) for (const r of ringList) haloList.push(r);
   ringHalo.set(haloList);
-  nodeSpheres.set(Math.round(state.nodeSolid) > 0 ? [] : nodeList);
+  // Glow (0) is a billboard field; Pearl (1) and Matter (2) are the sphere mesh.
+  const nodeLook = Math.round(state.nodeLook);
+  const nodesToMesh = Math.round(state.nodeSolid) > 0 ? [] : nodeList;
+  if (nodeLook === 0) {
+    nodeSpheres.set([]);
+    if (nodesToMesh.length) {
+      nodeGlow.faceCamera(camera);
+      nodeGlow.set(nodesToMesh, state.nodeGlowSpread * 3.4, 1);
+    } else {
+      nodeGlow.count = 0;
+    }
+  } else {
+    nodeGlow.count = 0;
+    if (nodeSpheres.material !== NODE_MATS[nodeLook - 1]) {
+      nodeSpheres.material = NODE_MATS[nodeLook - 1];
+    }
+    nodeSpheres.set(nodesToMesh);
+  }
 
   const eggFade = Math.max(0, smoothstep(4.5, 5.05, stage) - smoothstep(5.9, 6.5, stage));
   eggList.length = 0;
