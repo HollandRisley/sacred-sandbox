@@ -89,6 +89,31 @@ the surface normal orients the ring so it lies *on* the shell.
 
 Set **Sphere wrap** to 1 and the Flower of Life becomes a solid you rotate.
 
+Two things had to be right for it to sit concentric with everything else, and
+both were wrong at first:
+
+- **Depth becomes height along the normal, not along world z.** Adding the flat
+  figure's z to the target's z slid the whole shell sideways — at three layers,
+  by 96% of the sphere's own radius. Radially, the stacked layers become
+  concentric shells instead, evenly spaced by exactly the layer step.
+- **Coverage is measured against the outermost node.** The lattice fills only
+  about two thirds of the bounding radius, so scaling against that made the
+  control mean something different at every Lattice setting, and left the figure
+  covering barely a hemisphere with its mass above the origin. Measured against
+  the node reach, coverage 1 is a hemisphere and **1.42 puts the shell's centroid
+  on the origin** — verified by reading the instance matrices back and averaging
+  them.
+
+### Node surfaces
+
+A sphere mesh always has a silhouette where its outline meets the void, and a
+specular highlight sitting on it. That is what makes a translucent one read as a
+*bubble* rather than as energy, and no amount of tuning the material removes it:
+the edge is the geometry. So **Glow** is a camera-facing billboard instead — a
+tight core summed with a wide skirt, no edge anywhere. **Pearl** keeps the bubble,
+softened (roughness up, reflection down, so the highlight is a sheen rather than
+a glint), and **Matter** is opaque and depth-sorted.
+
 ### φ and the solids — `src/geometry/fibonacci.js`
 
 The golden ratio belongs here for a specific reason. The twelve vertices of an
