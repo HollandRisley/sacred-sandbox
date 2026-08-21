@@ -1,0 +1,28 @@
+{
+  "images": [
+    {
+      "file": "seed-of-life.svg",
+      "name": "Seed of Life"
+    },
+    {
+      "file": "vesica.svg",
+      "name": "Vesica"
+    },
+    {
+      "file": "hexagram.svg",
+      "name": "Hexagram"
+    },
+    {
+      "file": "golden-spiral.svg",
+      "name": "Golden spiral"
+    },
+    {
+      "file": "lotus.svg",
+      "name": "Lotus"
+    },
+    {
+      "file": "torus.svg",
+      "name": "Torus"
+    }
+  ]
+}

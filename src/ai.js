@@ -27,6 +27,7 @@ const RULES = [
   [/(pure geometry|emitter|emission|rays|cones|radiate|starburst)/i, PRESETS.geometry, 'Pure geometry radiating from the centre.'],
   [/(flower[s]?\b(?!.*life)|petal|bloom)/i, PRESETS.flowers, 'Little flowers, emitted and tumbling.'],
   [/(heart)/i, PRESETS.hearts, 'Rainbow hearts, cycling the spectrum as they travel out.'],
+  [/(image|photo|picture|sprite|glyph)/i, PRESETS.images, 'The image library, dealt across the arms. Add your own under Pure geometry.'],
   [/(spiral ?burst|psychedelic|swirl out)/i, PRESETS.spiralburst, 'Spiral emanations — the arms twisted into spirals, hue running along each.'],
   [/(sphere ?burst|explode|all directions|fibonacci sphere)/i, PRESETS.sphereburst, 'Emission in every direction at once, packed on a Fibonacci sphere.'],
   [/(mandala|complex|intricate|dmt visual|kaleido|rose window)/i, PRESETS.mandala, 'Sixty-one circles, six-fold moiré. Let your eyes unfocus.'],

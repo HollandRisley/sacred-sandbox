@@ -28,6 +28,7 @@ import { toroidStreamline, lapsFor, toroidPoints } from './geometry/toroid.js';
 import { phyllotaxis, goldenSpiral, goldenRectangles } from './geometry/fibonacci.js';
 import { armDirection } from './geometry/emitter.js';
 import { FORMS } from './geometry/forms.js';
+import { loadSpriteFolder, resolveSprites, spriteTexture } from './lib/sprites.js';
 import { metatronSpiral, HEXAGONS } from './geometry/metatronSpiral.js';
 import { PrismHalo } from './lib/prism.js';
 import { saveSetup, loadSetup, clearSetup, applySetup, describeSetup } from './lib/storage.js';
@@ -292,8 +293,82 @@ emBeads.setColorAt(0, new THREE.Color(0xffffff));
 // The rainbow: dispersion around each emitted particle, so they read as flaming
 // lights rather than as objects.
 const emPrism = new PrismHalo(MAX_ARMS * MAX_BEADS);
-emitterGroup.add(emRayLines, emPrism, emBeads);
+
+// IMAGE PARTICLES
+//
+// An InstancedMesh has one material, so it has one texture — which means a
+// library dealt across the arms cannot be a single mesh. It is instead a small
+// pool of meshes sharing one plane geometry, one per image actually in use, and
+// the beads are distributed between them. Eight is the ceiling: eight draw
+// calls is nothing, and past that the arms are being sliced too thin for any of
+// the pictures to read anyway.
+const MAX_SPRITE_MESHES = 8;
+const SPRITE_GEOM = FORMS.find((f) => f.image).build();
+const spriteGroup = new THREE.Group();
+const spriteMeshes = [];
+
+emitterGroup.add(emRayLines, emPrism, emBeads, spriteGroup);
 rig.add(emitterGroup);
+
+/**
+ * Prepare one slot of the pool: its texture, and the blend behaviour its
+ * surface implies. Both are set only on change — swapping `transparent` or
+ * `blending` on a live material forces a shader rebuild every frame otherwise.
+ */
+function prepareSpriteMesh(slot, id, look) {
+  let entry = spriteMeshes[slot];
+  if (!entry) {
+    const mesh = new THREE.InstancedMesh(
+      SPRITE_GEOM,
+      new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }),
+      MAX_ARMS * MAX_BEADS,
+    );
+    mesh.frustumCulled = false;
+    mesh.count = 0;
+    mesh.setColorAt(0, new THREE.Color(0xffffff));
+    spriteGroup.add(mesh);
+    entry = spriteMeshes[slot] = { mesh, id: null, look: -1, aspectX: 1, aspectY: 1 };
+  }
+
+  if (entry.id !== id) {
+    entry.mesh.material.map = spriteTexture(id);
+    entry.mesh.material.needsUpdate = true;
+    entry.id = id;
+  }
+
+  // A photograph is rarely square and the card is, so the picture would be
+  // stretched to fit. The narrow side is scaled down instead, which keeps the
+  // image's own proportions and keeps the size slider meaning the same thing
+  // for every form — the long edge is always what the radius describes.
+  //
+  // Re-read every frame rather than once: the texture loads asynchronously, so
+  // at the moment a picture is first chosen its dimensions are not known yet.
+  const img = entry.mesh.material.map && entry.mesh.material.map.image;
+  if (img && img.width && img.height) {
+    entry.aspectX = img.width >= img.height ? 1 : img.width / img.height;
+    entry.aspectY = img.height >= img.width ? 1 : img.height / img.width;
+  } else {
+    entry.aspectX = 1;
+    entry.aspectY = 1;
+  }
+
+  if (entry.look !== look) {
+    const m = entry.mesh.material;
+    // Matter keeps its promise for pictures too: an alpha *test* rather than
+    // alpha blending writes depth, so the buffer sorts the cards exactly and a
+    // far one can never paint over a near one. The trade is a hard cutout edge.
+    m.transparent = look !== 0;
+    m.alphaTest = look === 0 ? 0.45 : 0;
+    m.depthWrite = look === 0;
+    m.opacity = look === 1 ? 0.85 : 1;
+    m.blending = look === 2 ? THREE.AdditiveBlending : THREE.NormalBlending;
+    m.needsUpdate = true;
+    entry.look = look;
+  }
+
+  entry.mesh.count = 0;
+  return entry.mesh;
+}
 
 // ---------------------------------------------------------------- palette
 
@@ -1546,6 +1621,11 @@ const _emQuat = new THREE.Quaternion();
 const _emScale = new THREE.Vector3();
 const _emColor = new THREE.Color();
 const EM_SPIN_AXIS = new THREE.Vector3(0.3, 0.6, 0.74).normalize();
+const VIEW_AXIS = new THREE.Vector3(0, 0, 1);
+const _emFaceQ = new THREE.Quaternion();
+const _emRollQ = new THREE.Quaternion();
+const _emWorldQ = new THREE.Quaternion();
+let emSlots = [];
 let emActiveForm = -1;
 let emActiveLook = -1;
 let emLastRainbow = -1;
@@ -1567,13 +1647,40 @@ function updateEmitter() {
     emRayLines.setPaths([]);
     emBeads.count = 0;
     emPrism.count = 0;
+    for (const e of spriteMeshes) e.mesh.count = 0;
     return;
   }
 
   const form = Math.min(Math.round(state.emForm), FORMS.length - 1);
   const look = Math.min(Math.round(state.emLook), EM_MATS.length - 1);
-  if (form !== emActiveForm) { emBeads.geometry = EM_GEOM[form]; emActiveForm = form; }
-  if (look !== emActiveLook) { emBeads.material = EM_MATS[look]; emActiveLook = look; }
+  const isImage = !!FORMS[form].image;
+
+  // A picture has no back, so the image form billboards whether or not the
+  // switch is on — an edge-on card is an invisible one.
+  const facing = isImage || state.emFace;
+
+  if (!isImage) {
+    if (form !== emActiveForm) { emBeads.geometry = EM_GEOM[form]; emActiveForm = form; }
+    if (look !== emActiveLook) { emBeads.material = EM_MATS[look]; emActiveLook = look; }
+  }
+  emBeads.visible = !isImage;
+  spriteGroup.visible = isImage;
+
+  // The library is dealt across the arms one image per mesh. Resolving it here
+  // rather than per bead means a slot's texture and blend mode are settled once
+  // a frame, not sixty times.
+  emSlots = isImage ? resolveSprites(state.emImage).slice(0, MAX_SPRITE_MESHES) : [];
+  for (let k = 0; k < emSlots.length; k++) prepareSpriteMesh(k, emSlots[k].id, look);
+  for (let k = emSlots.length; k < spriteMeshes.length; k++) spriteMeshes[k].mesh.count = 0;
+  const slotN = emSlots.map(() => 0);
+
+  // Billboarding, computed once. The particles sit inside a group that is
+  // itself spinning, so the group's own world rotation has to be undone before
+  // the camera's is applied — otherwise Spin would drag the cards round with it.
+  if (facing) {
+    emitterGroup.getWorldQuaternion(_emWorldQ);
+    _emFaceQ.copy(_emWorldQ).invert().multiply(camera.quaternion);
+  }
 
   // Instance colour tints the diffuse term, but at metalness 0.45 the reflected
   // environment drowns it — rainbow hearts came out uniformly violet because the
@@ -1644,19 +1751,52 @@ function updateEmitter() {
       const shade = look === 0 ? 0.35 + fade * 0.65 : fade;
       _emColor.multiplyScalar(Math.max(shade, 0));
 
-      _emQuat.setFromAxisAngle(EM_SPIN_AXIS, clock * state.emTumble + i * 0.7 + j);
-      _emScale.setScalar(host.radius);
-      _emMat.compose(host.pos, _emQuat, _emScale);
-      emBeads.setMatrixAt(n, _emMat);
-      emBeads.setColorAt(n, _emColor);
+      const turn = clock * state.emTumble + i * 0.7 + j;
+      if (facing) {
+        // Square to the viewer, then rolled in the picture plane, so Tumble
+        // still turns the particle instead of being cancelled by the billboard.
+        _emRollQ.setFromAxisAngle(VIEW_AXIS, turn);
+        _emQuat.copy(_emFaceQ).multiply(_emRollQ);
+      } else {
+        _emQuat.setFromAxisAngle(EM_SPIN_AXIS, turn);
+      }
+      if (isImage) {
+        if (emSlots.length) {
+          const k = i % emSlots.length;
+          const entry = spriteMeshes[k];
+          _emScale.set(host.radius * entry.aspectX, host.radius * entry.aspectY, host.radius);
+          _emMat.compose(host.pos, _emQuat, _emScale);
+          const mesh = entry.mesh;
+          const at = slotN[k]++;
+          mesh.setMatrixAt(at, _emMat);
+          // The picture carries its own colour, so a lit shade would only
+          // muddy it — the tint is brightness and the rainbow, nothing more.
+          mesh.setColorAt(at, _emColor);
+        }
+      } else {
+        _emScale.setScalar(host.radius);
+        _emMat.compose(host.pos, _emQuat, _emScale);
+        emBeads.setMatrixAt(n, _emMat);
+        emBeads.setColorAt(n, _emColor);
+      }
       emHosts.push(host);
       n++;
     }
   }
 
-  emBeads.count = n;
-  emBeads.instanceMatrix.needsUpdate = true;
-  if (emBeads.instanceColor) emBeads.instanceColor.needsUpdate = true;
+  if (isImage) {
+    emBeads.count = 0;
+    for (let k = 0; k < emSlots.length; k++) {
+      const mesh = spriteMeshes[k].mesh;
+      mesh.count = slotN[k];
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
+  } else {
+    emBeads.count = n;
+    emBeads.instanceMatrix.needsUpdate = true;
+    if (emBeads.instanceColor) emBeads.instanceColor.needsUpdate = true;
+  }
   emRayLines.setPaths(rayPaths);
 
   if (state.prism > 0.004 && n > 0) {
@@ -1920,6 +2060,11 @@ async function boot() {
   loadEl = document.getElementById('load');
   solidInfoEl = document.getElementById('solidinfo');
 
+  // The shipped particle folder. Not awaited: a manifest that is slow or absent
+  // must not hold the piece back from drawing, and the emitter reads the
+  // library live, so the images simply appear the moment they arrive.
+  loadSpriteFolder().then(() => ui.refresh());
+
   // A saved setup is the piece the way its author last left it, so it wins over
   // the defaults on load.
   const saved = loadSetup();
@@ -1983,6 +2128,17 @@ async function boot() {
       Object.assign(state, patch);
       ui.refresh();
       onChange('*');
+    },
+    /**
+     * Run one update synchronously. A backgrounded tab throttles
+     * requestAnimationFrame down to a crawl, so instance counts and matrices
+     * read straight after a change are whatever the last real frame left
+     * behind — which has repeatedly made a working change look broken and a
+     * broken one look fine. This forces the state through.
+     */
+    frame() {
+      tick();
+      return true;
     },
   };
 

@@ -5,6 +5,7 @@ import { POLYTOPES } from './geometry/polytope4d.js';
 import { PALETTES } from './lib/palettes.js';
 import { PULSE_STYLES } from './lib/energy.js';
 import { FORMS } from './geometry/forms.js';
+import { spriteLibrary, addSprite, removeSprite, onSpritesChanged } from './lib/sprites.js';
 import { interpret } from './ai.js';
 
 const stageAt = (v) => STAGES[Math.min(STAGES.length - 1, Math.max(0, Math.round(v) - 1))];
@@ -25,6 +26,93 @@ const VISIBILITY = [
   ['showSpirals', 'Spirals'],
   ['showEmitter', 'Pure geometry'],
 ];
+
+/**
+ * THE IMAGE PICKER
+ *
+ * A thumbnail grid rather than a number, because an index is not something you
+ * can recognise. "All" is first and is the default: with no single image chosen
+ * the emitter deals the whole library across its arms, so the folder is a set
+ * rather than a menu.
+ *
+ * The selection is stored as the sprite's id, not its position. Positions move
+ * every time an image is added or removed, which would silently repoint a saved
+ * artwork at a different picture.
+ */
+function buildSpritePicker(row, c, onChange, bindings) {
+  row.classList.add('sprites');
+  row.innerHTML = `<span class="lab">Image</span>
+    <div class="spritegrid"></div>
+    <div class="spriteacts">
+      <button type="button" class="addimg">add image</button>
+      <input type="file" accept="image/*" hidden>
+    </div>
+    <p class="note spritenote"></p>`;
+
+  const grid = row.querySelector('.spritegrid');
+  const note = row.querySelector('.spritenote');
+  const file = row.querySelector('input[type=file]');
+  row.querySelector('.addimg').addEventListener('click', () => file.click());
+
+  file.addEventListener('change', async () => {
+    const chosen = file.files && file.files[0];
+    file.value = '';
+    if (!chosen) return;
+    note.textContent = 'reading…';
+    const { item, error, warn } = await addSprite(chosen);
+    if (error) { note.textContent = error; return; }
+    // Adding a picture is a request to use it, so select it.
+    state[c.key] = item.id;
+    onChange(c.key);
+    note.textContent = warn || `added ${item.name}`;
+  });
+
+  const paint = () => {
+    grid.textContent = '';
+    const pick = (id) => { state[c.key] = id; onChange(c.key); paint(); };
+
+    const all = document.createElement('button');
+    all.type = 'button';
+    all.className = 'sprite all' + (state[c.key] ? '' : ' on');
+    all.textContent = spriteLibrary.length ? `all ${spriteLibrary.length}` : 'empty';
+    all.title = 'deal every image across the arms';
+    all.addEventListener('click', () => pick(''));
+    grid.appendChild(all);
+
+    for (const item of spriteLibrary) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sprite' + (state[c.key] === item.id ? ' on' : '');
+      b.title = item.name;
+      b.innerHTML = `<img src="${item.url}" alt="">`;
+      b.addEventListener('click', () => pick(item.id));
+      if (item.mine) {
+        const x = document.createElement('span');
+        x.className = 'rm';
+        x.textContent = '×';
+        x.title = `remove ${item.name}`;
+        x.addEventListener('click', (e) => {
+          e.stopPropagation();
+          removeSprite(item.id);
+          if (state[c.key] === item.id) { state[c.key] = ''; onChange(c.key); }
+          note.textContent = `removed ${item.name}`;
+        });
+        b.appendChild(x);
+      }
+      grid.appendChild(b);
+    }
+
+    // Always set it, never only on the empty case: the first paint runs before
+    // the folder manifest has arrived, and a note left standing from then read
+    // "no images yet" underneath a full grid of them.
+    note.textContent = spriteLibrary.length
+      ? 'add your own, or drop files into public/particles and list them in manifest.json'
+      : 'no images yet — add one, or drop files into public/particles and list them in manifest.json';
+  };
+
+  onSpritesChanged(paint);
+  bindings.push(paint);
+}
 
 const SPEC = [
   {
@@ -202,9 +290,13 @@ const SPEC = [
     title: 'Pure geometry',
     owner: 'showEmitter',
     when: (s) => s.showEmitter,
-    note: 'Particles released from the centre along each arm. Spread takes the arms from a flat rose window to a Fibonacci sphere; Twist carries each particle further around the further out it goes, which turns straight rays into spirals.',
+    note: 'Particles released from the centre along each arm. Spread takes the arms from a flat rose window to a Fibonacci sphere; Twist carries each particle further around the further out it goes, which turns straight rays into spirals. Face camera holds every particle square to the viewer; the Images form always does.',
     controls: [
       { key: 'emForm', label: 'Form', min: 0, max: FORMS.length - 1, step: 1, read: (v) => FORMS[v].name },
+      // Only shown for images, because that is the only form that can be one.
+      { key: 'emImage', type: 'sprites', when: (s) => !!FORMS[Math.round(s.emForm)].image },
+      // Images always billboard, so offering the switch there would be a lie.
+      { key: 'emFace', label: 'Face camera', type: 'toggle', when: (s) => !FORMS[Math.round(s.emForm)].image },
       // Matter is the only opaque option, so it is the only one whose instances
       // the depth buffer can sort. The others will layer by draw order.
       { key: 'emLook', label: 'Surface', min: 0, max: 2, step: 1, read: (v) => ['Matter — solid, sorts correctly', 'Pearl — translucent', 'Ember — pure light'][v] },
@@ -265,7 +357,7 @@ export function buildUI(onChange, onLayout, store) {
   const CAPTIONS = [
     ['showJoins', 'Metatron’s Cube', 'Thirteen points joined every way: a hexagon in two dimensions, a cuboctahedron in three, the 24-cell in four. Each is the arrangement where the distance to the centre equals the distance between neighbours.'],
     ['showCore', 'Singularity', 'Each lattice node lifted through the Hopf fibration into a circle in four-dimensional space, every pair linked. Depth stacks the figure at nested scales that climb outward forever.'],
-    ['showEmitter', 'Pure geometry', 'Particles released from the centre along each arm \u2014 spheres, flowers or hearts. Spread carries the arms from a flat rose window to a Fibonacci sphere; Twist turns the rays into spirals.'],
+    ['showEmitter', 'Pure geometry', 'Particles released from the centre along each arm \u2014 spheres, flowers, hearts or your own images. Spread carries the arms from a flat rose window to a Fibonacci sphere; Twist turns the rays into spirals.'],
     ['showToroid', 'Toroid', 'Flow rises through the centre, turns over, and returns around the outside. Its strands are bound to the merkaba turning inside it.'],
     ['showMerkaba', 'Merkaba', 'Two tetrahedra, one inverted, turning against each other.'],
     ['showPoly', 'Fourth dimension', 'A regular 4-polytope turning in planes that have no axis in our space, projected down into it.'],
@@ -361,7 +453,9 @@ export function buildUI(onChange, onLayout, store) {
       // with its group — a live slider that cannot do anything is a lie.
       if (c.when) bindings.push(() => row.classList.toggle('hidden', !c.when(state)));
 
-      if (c.type === 'toggle') {
+      if (c.type === 'sprites') {
+        buildSpritePicker(row, c, onChange, bindings);
+      } else if (c.type === 'toggle') {
         // autocomplete=off stops the browser restoring stale control values on
         // reload, which would otherwise desync the panel from `state`.
         row.innerHTML = `<span class="lab">${c.label}</span><input type="checkbox" class="tgl" autocomplete="off">`;
@@ -417,7 +511,7 @@ export function buildUI(onChange, onLayout, store) {
       <input type="text" id="ask" placeholder="open the chakra, let it flow" autocomplete="off">
       <button id="askgo" aria-label="Run">→</button>
     </div>
-    <p class="reply" id="reply">Try: installation · chakra · toroid · merkaba · fibonacci · singularity · mandala · flow · still</p>
+    <p class="reply" id="reply">Try: installation · chakra · toroid · merkaba · fibonacci · singularity · mandala · images · flow · still</p>
     <p class="load" id="load"></p>`;
   panel.appendChild(ai);
 

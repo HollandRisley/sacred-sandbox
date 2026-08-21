@@ -34,17 +34,49 @@ function spectrumTexture(size = 128) {
       if (t > 1) { img.data[i + 3] = 0; continue; }
 
       // Core: white, the undispersed light.
-      // Beyond it: hue sweeps violet → red as the radius grows, the short
-      // wavelengths bent hardest and so sitting innermost.
-      const core = Math.max(0, 1 - t / 0.22);
-      const spectral = Math.min(Math.max((t - 0.16) / 0.84, 0), 1);
-      c.setHSL(0.78 - spectral * 0.78, 1, 0.55);
+      // A wide achromatic core is what makes this read as light rather than as
+      // a coloured disc: white-hot at the middle, the spectrum only a fringe.
+      // Narrower and every halo carries a muddy tint all the way in.
+      const core = Math.max(0, 1 - t / 0.44);
+      const spectral = Math.min(Math.max((t - 0.32) / 0.68, 0), 1);
 
-      const falloff = (1 - t) ** 2.2;
-      const r = c.r * (1 - core) + core;
-      const g = c.g * (1 - core) + core;
-      const b = c.b * (1 - core) + core;
+      // HUE IS NOT LINEAR IN RADIUS, AND FOR TWO REASONS.
+      //
+      // Physically: short wavelengths are bent hardest, so violet crowds into a
+      // tight inner band and red rides the outer rim. A linear sweep spreads
+      // them evenly in radius instead, which is not what dispersion does.
+      //
+      // Perceptually: the area of a ring grows with its radius, so a linear
+      // sweep puts the middle of the spectrum — green — exactly where most of
+      // the pixels are. Integrated over the disc the old profile emitted
+      // R 0.18 : G 0.36 : B 0.46. Every halo was a blue-green blob, and once
+      // bloom smeared a field of them together the whole piece went sickly.
+      //
+      // Raising the sweep to a power pulls violet and green into a narrow inner
+      // fringe and gives the wide outer rings to orange and red, which is both
+      // the true bending order and the thing that balances the disc.
+      const hue = 0.72 * (1 - spectral) ** 2.2;
+      c.setHSL(hue, 1, 0.55);
 
+      // A saturated hue at full chroma is not equally bright to the eye at
+      // every wavelength — green carries ~0.72 of the luminance where blue
+      // carries ~0.07 — so an equal-energy spectrum still reads green. Dividing
+      // each band by its own relative luminance flattens the perceived weight.
+      const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+      const k = 0.45 / Math.max(lum, 1e-3);
+
+      // Falloff decoupled from the hue axis. At 2.2 the whole red half of the
+      // spectrum was extinguished before it could be seen, which is what left
+      // only the cool bands standing.
+      const falloff = (1 - t) ** 1.45;
+
+      const r = Math.min(c.r * k, 1) * (1 - core) + core;
+      const g = Math.min(c.g * k, 1) * (1 - core) + core;
+      const b = Math.min(c.b * k, 1) * (1 - core) + core;
+
+      // Additive blending already multiplies by alpha, so the falloff belongs
+      // in the alpha channel only — applying it to the colour too would square
+      // it and choke the fringe the balance depends on.
       img.data[i] = Math.round(r * 255);
       img.data[i + 1] = Math.round(g * 255);
       img.data[i + 2] = Math.round(b * 255);

@@ -137,8 +137,18 @@ export function sphereGeometry() {
   return new THREE.SphereGeometry(1, 18, 12);
 }
 
+/**
+ * The carrier for an image particle. A picture has no depth, so it is a plane —
+ * and a plane is only ever seen properly square to the viewer, which is why the
+ * image form always billboards regardless of the Face camera switch.
+ */
+export function cardGeometry() {
+  return new THREE.PlaneGeometry(2, 2);
+}
+
 export const FORMS = [
   { id: 'sphere', name: 'Spheres', build: sphereGeometry },
   { id: 'flower', name: 'Flowers', build: () => flowerGeometry(6) },
   { id: 'heart', name: 'Hearts', build: heartGeometry },
+  { id: 'image', name: 'Images', build: cardGeometry, image: true },
 ];

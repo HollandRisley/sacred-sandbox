@@ -91,8 +91,10 @@ export const state = {
   emBeadSize: 0.06,
   emFlow: 0.18,
   emSpin: 0.08,
-  emForm: 0,        // 0 spheres, 1 flowers, 2 hearts
+  emForm: 0,        // 0 spheres, 1 flowers, 2 hearts, 3 images
   emLook: 0,        // 0 matter (opaque, sorts correctly), 1 pearl, 2 ember
+  emImage: '',      // which sprite; '' deals the whole library across the arms
+  emFace: false,    // hold every particle square to the camera
   emTwist: 0.35,    // turns straight rays into spiral emanations
   emTumble: 0.4,    // each particle turning on its own axis
   emRainbow: 0,     // hue cycled along each arm
@@ -192,6 +194,7 @@ export const PRESETS = {
   sphereburst: { ...only('showEmitter'), emArms: 60, emSpread: 1, emReach: 3.4, emBeads: 5, emFlow: 0.24, emSpin: 0.05, emForm: 0, emLook: 0, emTwist: 0.2 },
   flowers: { ...only('showEmitter'), emForm: 1, emLook: 0, emArms: 10, emBeads: 6, emSpread: 0.25, emReach: 3.2, emBeadSize: 0.16, emTwist: 0.5, emTumble: 0.3, emFlow: 0.16, prism: 1.1 },
   hearts: { ...only('showEmitter'), emForm: 2, emLook: 0, emRainbow: 1, emArms: 12, emBeads: 6, emSpread: 0.35, emReach: 3.2, emBeadSize: 0.14, emTwist: 0.45, emTumble: 0.5, emFlow: 0.16, prism: 1.4 },
+  images: { ...only('showEmitter'), emForm: 3, emImage: '', emLook: 2, emArms: 12, emBeads: 5, emSpread: 0.3, emReach: 3.2, emBeadSize: 0.22, emTwist: 0.4, emTumble: 0.15, emFlow: 0.14, emRainbow: 0.4, emRays: 0.3, prism: 0.5 },
   spiralburst: { ...only('showEmitter', 'showCore'), emForm: 0, emLook: 2, emArms: 28, emBeads: 9, emSpread: 0.5, emReach: 3.6, emBeadSize: 0.07, emTwist: 1.1, emFlow: 0.22, emRainbow: 0.7, prism: 1.6, fibres: 7 },
   // Each element occupies its own radius so they read as layers of one object
   // rather than merging: merkaba at the core, toroid as a ring outside the

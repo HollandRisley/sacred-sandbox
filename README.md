@@ -205,6 +205,74 @@ turns the metalness and reflection down as it rises, because at full metal the
 environment drowns the per-instance colour — rainbow hearts came out uniformly
 violet against a violet sky before that.
 
+**Images.** A fourth form: the particle is a picture. Two sources, one library —
+`public/particles/`, listed by a `manifest.json` (drop a file in, add a line,
+and it is pickable), and anything added through the panel, which is downscaled
+to 256px and kept in `localStorage` under its own key so clearing a saved
+artwork does not throw the pictures away with it. The shipped set is six SVG
+glyphs — Seed of Life, vesica, hexagram, golden spiral, lotus, torus — a few
+kilobytes in total and editable in any text editor.
+
+Picking is a thumbnail grid, not an index, because an index is not something you
+can recognise. **All** is the default: with no single image chosen the emitter
+deals the whole library across its arms. The selection is stored as the sprite's
+*id*, not its position — positions shift every time an image is added or
+removed, which would silently repoint a saved artwork at a different picture.
+
+Two implementation consequences worth knowing:
+
+- **One mesh per image.** An InstancedMesh has one material, so it has one
+  texture, so a library dealt across the arms cannot be a single mesh. It is a
+  pool of eight sharing one plane geometry, one per image actually in use.
+  Eight draw calls is nothing, and past eight the arms are sliced too thin for
+  any of the pictures to read anyway.
+- **The card is not square.** A photograph rarely is, and stretching it to fit
+  would be wrong, so the narrow side is scaled down by the texture's aspect —
+  measured every frame, because the texture loads asynchronously and its
+  dimensions are unknown at the moment the picture is first chosen. The long
+  edge is always what the size slider describes, so one number still means the
+  same thing across all four forms.
+
+**Face camera** holds every particle square to the viewer. The group the
+particles live in is itself spinning, so the billboard undoes the group's own
+world rotation before applying the camera's — otherwise **Spin** would drag the
+cards round with it. Tumble is not lost to it: it becomes a roll in the picture
+plane. The Images form billboards whether the switch is on or not, and the
+switch is hidden there rather than shown doing nothing — a picture has no back,
+and an edge-on card is an invisible one.
+
+### The dispersion halo was green, and why
+
+The prism glow is a camera-facing billboard carrying a radial spectrum, drawn
+additively — white at the core, colour by wavelength as the radius grows. The
+first version swept hue linearly with radius and faded alpha with radius too,
+which couples two things that must not be coupled:
+
+- **Area.** A ring's area grows with its radius, so a linear sweep puts the
+  middle of the spectrum — green — exactly where most of the pixels are.
+- **Alpha.** `(1−t)^2.2` extinguished the whole red half of the spectrum before
+  it could be seen, because red sat at the largest radius.
+
+Integrated over the disc the halo emitted **R 0.18 : G 0.36 : B 0.46**. Every
+glow was a blue-green blob, and once bloom smeared a field of them together the
+piece went sickly — which is exactly what the flower preset looked like.
+
+Three changes, each of which is also the physically truer thing:
+
+- **Hue is raised to a power, not linear.** Short wavelengths are bent hardest,
+  so violet belongs in a tight inner fringe and red on the wide outer rim. That
+  is both the real bending order and what balances the disc by area.
+- **Each band is divided by its own relative luminance.** A saturated hue at
+  full chroma is not equally bright at every wavelength — green carries ~0.72 of
+  the luminance where blue carries ~0.07 — so an equal-energy spectrum still
+  reads green.
+- **A wide achromatic core**, so the thing reads as light with a spectral fringe
+  rather than as a coloured disc.
+
+Measured on the generated texture, the halo now emits **R 0.335 : G 0.336 :
+B 0.329** — neutral white light. The colour is all in the fringe, where
+dispersion actually puts it.
+
 ### Switching a layer off has to stop the work
 
 Not just the drawing. Two bugs of exactly this shape were found and fixed:
@@ -389,6 +457,8 @@ src/
   lib/fields.js         instanced primitives + neon and pearlescent materials
   lib/energy.js         glowing lines: core tube, halo, travelling pulses
   lib/palettes.js       colour schemes and the generated environment map
+  lib/prism.js          dispersion and soft-glow billboard textures
+  lib/sprites.js        the image particle library — folder, uploads, textures
   geometry/sacred.js    hex lattice, stage sequence, Metatron's Cube
   geometry/platonic.js  the five solids
   geometry/polytope4d.js  4-polytopes and six-plane rotation
@@ -448,8 +518,12 @@ src/
 
 ## Performance
 
-Frame rate could not be measured from the automated preview — a backgrounded tab
-throttles `requestAnimationFrame`. What was measured: at the previous version's
+A backgrounded tab throttles `requestAnimationFrame` to a crawl, so instance
+counts and matrices read straight after a change are whatever the last real
+frame left behind. That has repeatedly made a working change look broken and a
+broken one look fine, so `window.sandbox.frame()` runs one update synchronously
+and forces the state through. Frame rate itself still could not be measured this
+way. What was measured: at the previous version's
 maximum settings, ~2.4M triangles across ~1300 draw calls at ~4.8 ms per
 synchronous render on an M-series Mac, excluding bloom. Comfortable on desktop,
 heavy on a phone. Levers in order: **Lattice**, **Echoes**, **Emanation**,
