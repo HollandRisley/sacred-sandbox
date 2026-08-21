@@ -433,6 +433,7 @@ const primaryNodes = [];
 let circles = flowerCircles(2);
 let circlesExtent = 2;
 let latticeWanted = 0;   // instances the settings asked for, before clamping
+let latticeShed = null;  // what had to be given up to fit, if anything
 
 // Circle radius, fitted so the figure keeps a constant overall diameter as the
 // lattice grows: raising the lattice count adds detail rather than size.
@@ -487,6 +488,7 @@ function rebuildLattice() {
     nodes.length = 0;
     primaryNodes.length = 0;
     latticeWanted = 0;
+    latticeShed = null;
     return;
   }
 
@@ -498,9 +500,27 @@ function rebuildLattice() {
   // and nothing else: at extent 4 with six echoes and six shells that is 61
   // placements instead of 3660, for an identical result.
   const tethersOnly = !state.showRings && !state.showNodes;
-  const echoes = tethersOnly ? 1 : Math.round(state.echoes);
-  const nLayers = tethersOnly ? 0 : Math.round(state.layers);
-  const shells = tethersOnly ? 0 : Math.round(state.shells);
+  let echoes = tethersOnly ? 1 : Math.round(state.echoes);
+  let nLayers = tethersOnly ? 0 : Math.round(state.layers);
+  let shells = tethersOnly ? 0 : Math.round(state.shells);
+
+  // Echoes and shells MULTIPLY — six of each is thirty-six complete copies of
+  // the figure, which is how the count reached 2928 against a 1500 ceiling.
+  // Filling to the ceiling and dropping the remainder truncated a figure
+  // part-drawn, which reads as broken rather than as reduced. Instead, shed
+  // whole copies until the request fits: echoes first (a flat-figure moiré
+  // device, and the least meaningful once the thing is emanating), then depth,
+  // then shells last, since the emanation is usually the point. What was given
+  // up is reported rather than absorbed silently.
+  const asked = { echoes, layers: nLayers, shells };
+  const cost = () => Math.max(shells, 1) * circles.length * (echoes + 2 * nLayers);
+  while (cost() > nodePool.length && echoes > 1) echoes--;
+  while (cost() > nodePool.length && nLayers > 0) nLayers--;
+  while (cost() > nodePool.length && shells > 1) shells--;
+  latticeShed = (echoes !== asked.echoes || nLayers !== asked.layers || shells !== asked.shells)
+    ? { asked, got: { echoes, layers: nLayers, shells } }
+    : null;
+
   const shellCount = Math.max(shells, 1);
   const wrap = state.wrap;
   const sphereR = outerR * 0.85;
@@ -618,6 +638,18 @@ const nodeList = [];
 const boundList = [];
 const eggList = [];
 const BOUNDS = new THREE.Vector3();
+
+/**
+ * Which nodes get a marker. Selection walks the golden ratio rather than taking
+ * every Nth, because a fixed stride lands on the lattice's own periodicity and
+ * picks out whole rings or spokes; an irrational step scatters evenly at any
+ * density. Deterministic, so nothing flickers between frames.
+ */
+function keepNode(i) {
+  const d = state.nodeDensity;
+  if (d >= 0.999) return true;
+  return ((i * 0.6180339887) % 1) < d;
+}
 let eggCache = [];
 let eggCacheR = -1;
 let activeNodeSolid = -1;
@@ -637,12 +669,13 @@ function paintLattice() {
   const wantRings = state.showRings;
   const wantNodes = state.showNodes && size > 0.004;
 
+  let nodeIndex = 0;
   if (wantRings || wantNodes) {
     for (const n of nodes) {
       const fade = smoothstep(n.born - 0.65, n.born + 0.12, stage) * n.fade;
       if (fade < 0.004) continue;
       if (wantRings) ringList.push({ pos: n.pos, radius: fittedR * n.scale, quat: n.quat, fade });
-      if (wantNodes) {
+      if (wantNodes && keepNode(nodeIndex++)) {
         nodeList.push({
           pos: n.pos,
           radius: size * fittedR * n.scale * (1 + n.exc * 0.9),
@@ -1691,12 +1724,24 @@ function tick() {
   if (loadEl) {
     const clamped = latticeWanted > MAX_NODES;
     const nsWarn = nodeSolidsClamped > 0;
-    loadEl.textContent = clamped
-      ? `lattice ${MAX_NODES} of ${latticeWanted} instances — clamped, reduce Lattice / Echoes / Emanation`
-      : nsWarn
-        ? `lattice ${latticeWanted} · node solids ${MAX_NODE_SOLIDS} of ${nodeSolidsClamped} — clamped`
-        : `lattice ${latticeWanted} instances`;
-    loadEl.classList.toggle('warn', clamped || nsWarn);
+    let txt;
+    if (latticeShed) {
+      // Name exactly what was given up and why, so the number on the slider and
+      // the thing on screen never disagree without saying so.
+      const a = latticeShed.asked;
+      const g = latticeShed.got;
+      const parts = [];
+      if (g.echoes !== a.echoes) parts.push(`echoes ${a.echoes}\u2192${g.echoes}`);
+      if (g.layers !== a.layers) parts.push(`depth ${a.layers}\u2192${g.layers}`);
+      if (g.shells !== a.shells) parts.push(`shells ${a.shells}\u2192${g.shells}`);
+      txt = `lattice ${latticeWanted} instances \u2014 ${parts.join(', ')} to fit`;
+    } else if (nsWarn) {
+      txt = `lattice ${latticeWanted} \u00b7 node solids ${MAX_NODE_SOLIDS} of ${nodeSolidsClamped} \u2014 clamped`;
+    } else {
+      txt = `lattice ${latticeWanted} instances`;
+    }
+    loadEl.textContent = txt;
+    loadEl.classList.toggle('warn', !!latticeShed || nsWarn);
   }
 
   // Prism coronas, after everything has placed its particles and vertices.
@@ -1725,6 +1770,7 @@ const ALL_LINES = [joinLines, solidLines, rectLines, polyLines, tetherLines,
   anchorLines, spokeLines, ...strandLines];
 
 const vertexHosts = [];
+const EMPTY = [];
 
 /** Coronas on the vertex spheres, mirroring whatever each field last drew. */
 function updateVertexPrisms(strength, scale) {
@@ -1732,7 +1778,10 @@ function updateVertexPrisms(strength, scale) {
     [joinPrism, joinNodeList],
     [solidPrism, solidVertList],
     [polyPrism, vertList],
-    [nodePrism, nodeList],
+    // Glow nodes are already billboards carrying their own halo; a prism corona
+    // on top would double-draw, and nodePrism's smaller cap would silently clamp
+    // the list as well. Only the mesh surfaces need it.
+    [nodePrism, Math.round(state.nodeLook) === 0 ? EMPTY : nodeList],
   ];
   for (const [halo, list] of pairs) {
     if (strength <= 0.004 || !list.length || !halo.parent.visible) { halo.count = 0; continue; }

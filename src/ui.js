@@ -52,6 +52,9 @@ const SPEC = [
       { key: 'echoes', label: 'Echoes', min: 1, max: 6, step: 1, read: (v) => (v === 1 ? 'single' : `${v}-fold moiré`) },
       { key: 'layers', label: '3D depth', min: 0, max: 3, step: 1, read: (v) => (v === 0 ? 'flat' : `${v * 2 + 1} layers`) },
       { key: 'nodeSize', label: 'Node spheres', min: 0, max: 0.55, step: 0.005 },
+      // Thins the markers without touching the circles, so density and
+      // structure are separate decisions.
+      { key: 'nodeDensity', label: 'Node density', min: 0.02, max: 1, step: 0.01, read: (v) => (v > 0.995 ? 'every node' : `${Math.round(v * 100)}% of nodes`) },
       // Glow is a billboard, so it has no silhouette and no highlight — which is
       // the difference between reading as energy and reading as a bubble.
       { key: 'nodeLook', label: 'Node surface', min: 0, max: 2, step: 1, read: (v) => ['Glow — edgeless light', 'Pearl — translucent bubble', 'Matter — solid, sorts correctly'][v] },

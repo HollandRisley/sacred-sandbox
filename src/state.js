@@ -42,6 +42,7 @@ export const state = {
   layers: 0,
   spin: 0.05,
   nodeSize: 0.11,
+  nodeDensity: 0.35,    // fraction of lattice nodes that get a marker
   nodeLook: 0,          // 0 glow (edgeless), 1 pearl, 2 matter
   nodeGlowSpread: 1,    // how far the glow reaches past the node
 
