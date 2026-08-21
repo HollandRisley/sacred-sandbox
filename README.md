@@ -404,6 +404,21 @@ src/
   moiré.
 - **The figure is size-normalised**, so raising the lattice count adds detail
   rather than diameter.
+- **Echoes and shells multiply**, which is easy to miss: six of each is
+  thirty-six complete copies of the figure, and at extent 4 that asks for 2928
+  node placements against a 1500 ceiling. Filling to the ceiling and dropping
+  the remainder truncated a figure part-drawn, which reads as broken rather than
+  as reduced — so the lattice sheds *whole copies* until the request fits.
+  Echoes go first (a flat-figure device, least meaningful once the thing is
+  emanating), then depth, then shells last, because the emanation is usually the
+  point. Whatever was given up is named in the readout — `echoes 6→2 to fit` —
+  rather than absorbed silently, so the number on the slider and the thing on
+  screen never disagree without saying so.
+- **Node density** thins the markers without touching the circles, so how many
+  points glow and how much structure is drawn are separate decisions. Selection
+  walks the golden ratio rather than taking every Nth node: a fixed stride lands
+  on the lattice's own periodicity and picks out whole rings or spokes, where an
+  irrational step scatters evenly at any density.
 
 ## Performance
 
