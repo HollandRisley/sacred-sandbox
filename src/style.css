@@ -1,0 +1,424 @@
+:root {
+  --ink: #e8ecff;
+  --dim: #8d97bd;
+  --line: rgba(140, 160, 220, 0.18);
+  --glass: rgba(10, 14, 28, 0.72);
+  --accent: #7fd8ff;
+  --pad: 14px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #04060d;
+  color: var(--ink);
+  font: 400 15px/1.45 ui-sans-serif, -apple-system, "SF Pro Text", Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+body::before {
+  /* The void the geometry sits in. Additive blending needs somewhere dark to land. */
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 42%, #101a38 0%, #080c1c 45%, #04060d 100%),
+    radial-gradient(60% 50% at 80% 10%, rgba(80, 60, 160, 0.28), transparent 70%);
+  z-index: -1;
+}
+
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none; /* OrbitControls owns the gestures */
+}
+
+/* ------------------------------------------------------------ readout */
+
+#readout {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  left: 16px;
+  max-width: min(380px, calc(100vw - 96px));
+  pointer-events: none;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9);
+}
+
+.r-title {
+  font-size: clamp(22px, 5.5vw, 34px);
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  margin-bottom: 4px;
+}
+
+.r-blurb {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+#hint {
+  position: fixed;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 16px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(141, 151, 189, 0.55);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------ toggle */
+
+#toggle {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+  z-index: 30;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+#toggle svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+body.panel-open #toggle { transform: rotate(120deg); color: var(--ink); }
+
+/* ------------------------------------------------------------ panel */
+
+#panel {
+  position: fixed;
+  z-index: 20;
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid var(--line);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.brand { padding: var(--pad) var(--pad) 4px; }
+.brand h1 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
+.brand p { margin: 4px 0 0; font-size: 11px; color: var(--dim); }
+.brand b { color: var(--accent); font-weight: 500; }
+
+.group { padding: 10px var(--pad) 14px; border-top: 1px solid var(--line); }
+.group h2 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* Visibility chips — the top-level on/off for each element of the piece. */
+.vis { position: sticky; top: 0; z-index: 2; background: rgba(8, 11, 24, 0.92); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.ghead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.gacts { display: flex; gap: 4px; margin-bottom: 8px; }
+.gacts button {
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--dim);
+  border-radius: 7px;
+  padding: 4px 9px;
+  font: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.gacts button:hover { color: var(--ink); border-color: rgba(127, 216, 255, 0.5); }
+
+.chip {
+  flex: 1 1 auto;
+  min-height: 34px;
+  padding: 6px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(141, 151, 189, 0.85);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.chip.on {
+  background: rgba(127, 216, 255, 0.16);
+  border-color: rgba(127, 216, 255, 0.55);
+  color: var(--ink);
+  box-shadow: 0 0 12px rgba(127, 216, 255, 0.18);
+}
+
+.load {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: rgba(141, 151, 189, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+.load.warn { color: #ffb86b; }
+
+.note {
+  margin: -2px 0 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(141, 151, 189, 0.75);
+}
+
+.row { display: block; margin-bottom: 12px; }
+.row:last-child { margin-bottom: 2px; }
+
+.lab {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12.5px;
+  margin-bottom: 5px;
+}
+
+.val { font-style: normal; color: var(--accent); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+
+/* Sliders: 44px of touch target, 3px of visible track. */
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  background: none;
+  margin: 0;
+  cursor: pointer;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(127, 216, 255, 0.5), rgba(140, 160, 220, 0.16));
+}
+input[type=range]::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(127, 216, 255, 0.5), rgba(140, 160, 220, 0.16));
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8.5px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 4px solid #0a1024;
+  box-shadow: 0 0 0 1px rgba(127, 216, 255, 0.6), 0 0 14px rgba(127, 216, 255, 0.45);
+}
+input[type=range]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 4px solid #0a1024;
+  box-shadow: 0 0 0 1px rgba(127, 216, 255, 0.6);
+}
+
+.row:has(.tgl) .lab { margin-bottom: 0; }
+.row:has(.tgl) { display: flex; align-items: center; justify-content: space-between; min-height: 34px; }
+.row:has(.tgl) .lab { flex: 1; }
+
+.tgl {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(140, 160, 220, 0.18);
+  border: 1px solid var(--line);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex: none;
+}
+.tgl::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform 0.2s;
+}
+.tgl:checked { background: rgba(127, 216, 255, 0.45); }
+.tgl:checked::after { transform: translateX(18px); }
+
+/* ------------------------------------------------------------ ask bar */
+
+.askbar { display: flex; gap: 8px; }
+
+#ask {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px; /* 16px keeps iOS Safari from zooming on focus */
+}
+#ask::placeholder { color: rgba(141, 151, 189, 0.6); }
+#ask:focus { outline: none; border-color: rgba(127, 216, 255, 0.6); }
+
+#askgo {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(127, 216, 255, 0.16);
+  color: var(--accent);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.reply { margin: 8px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--dim); }
+
+/* ------------------------------------------------------------ loader */
+
+#loader { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+body.loading #loader { opacity: 1; }
+#loader span {
+  width: 42px; height: 42px; border-radius: 50%;
+  border: 1px solid rgba(127, 216, 255, 0.25);
+  border-top-color: var(--accent);
+  animation: spin 1.1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ------------------------------------------------------------ layout */
+
+/* Phones: the panel is a bottom sheet that never covers more than half the art. */
+@media (max-width: 819px) {
+  #panel {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 56vh;
+    overflow-y: auto;
+    border-radius: 20px 20px 0 0;
+    border-bottom: none;
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+    transform: translateY(102%);
+    transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  body.panel-open #panel { transform: translateY(0); }
+  #hint { display: none; }
+}
+
+/* Desktop: a fixed column on the right. */
+@media (min-width: 820px) {
+  #panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 320px;
+    overflow-y: auto;
+    border-right: none;
+    border-top: none;
+    border-bottom: none;
+    padding-top: 8px;
+    transform: translateX(100%);
+    transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  body.panel-open #panel { transform: translateX(0); }
+  body.panel-open #toggle { right: 336px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #panel, #toggle { transition: none; }
+}
+
+/* A group — or a single control — with nothing to control goes away. Scoped to
+   #panel so it outranks the later `.row:has(.tgl) { display: flex }` rule
+   rather than depending on source order. */
+#panel .group.hidden,
+#panel .row.hidden { display: none; }
+
+/* ------------------------------------------------------------ accordion */
+
+.acch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 0 8px;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.acch h2 { margin: 0; }
+.acch:hover h2 { color: var(--ink); }
+
+.caret {
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--dim);
+  border-bottom: 1.5px solid var(--dim);
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+  margin-right: 3px;
+  flex: none;
+}
+.group.open .caret { transform: rotate(45deg); }
+
+/* Closed sections keep their header and drop everything else. */
+.group.acc:not(.open) .gbody { display: none; }
+.group.acc:not(.open) { padding-bottom: 6px; }
+
+/* ------------------------------------------------------------ WebXR */
+
+/* three's VRButton styles itself inline and centres on the bottom edge, which
+   collides with the orbit hint. Nudge it up and match the panel's language. */
+#VRButton {
+  bottom: max(58px, calc(env(safe-area-inset-bottom) + 58px)) !important;
+  border-radius: 10px !important;
+  border-color: rgba(127, 216, 255, 0.55) !important;
+  background: rgba(127, 216, 255, 0.14) !important;
+  color: var(--ink) !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Nothing in the DOM is visible while presenting; keep it out of the way. */
+body.in-xr #panel,
+body.in-xr #toggle,
+body.in-xr #hint { display: none; }

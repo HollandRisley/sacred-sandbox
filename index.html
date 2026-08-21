@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#05070e">
+  <meta name="description" content="An experimental 3D and 4D sacred geometry playground — Flower of Life, Metatron's Cube, Platonic solids and hypercube shadows, in the browser.">
+  <title>Sacred Sandbox — geometry in three and four dimensions</title>
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body class="loading">
+  <canvas id="view"></canvas>
+
+  <header id="readout">
+    <div class="r-title">—</div>
+    <div class="r-blurb"></div>
+  </header>
+
+  <div id="loader"><span></span></div>
+
+  <button id="toggle" aria-label="Toggle controls">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+  </button>
+
+  <aside id="panel">
+    <div class="brand">
+      <h1>Sacred Sandbox</h1>
+      <p>Three dimensions, and a rumour of a fourth. Rendering with <b id="backend">…</b>.</p>
+    </div>
+  </aside>
+
+  <footer id="hint">drag to orbit · pinch to zoom</footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
