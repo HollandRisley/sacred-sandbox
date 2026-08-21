@@ -221,6 +221,13 @@ Not just the drawing. Two bugs of exactly this shape were found and fixed:
   solve kept running with every layer switched off. It now also requires the
   solid to actually be drawn.
 
+- The travelling window that draws lines as comets read its length straight
+  from the slider, so the **Particles** chip never reached it. Switching
+  particles off removed the pulse spheres but left every line still being lit a
+  fragment at a time — the flashing that appeared to have no control. The tail
+  is now forced to 1 (the whole path, i.e. a solid line) whenever particles are
+  hidden.
+
 With every chip off the scene draws **zero instances**. Worth re-checking
 whenever a layer gains a new consumer.
 
@@ -361,6 +368,16 @@ The panel reports the lattice instance count at the bottom, and says so plainly
 when Lattice × Echoes × Emanation exceeds the 1500-instance ceiling and geometry
 is being dropped. It does not silently truncate.
 
+**Vertex pulse** and **Pulse rate** live under *Energy*, not under *Particles*.
+They breathe the vertex markers — polytope corners, join nodes, solid corners,
+lattice nodes — on the master clock, each vertex offset along the golden ratio
+so the field shimmers rather than blinking in unison. They sit under Energy on
+purpose: this is the effect that used to happen *with particles switched off*
+and could not be reached, so putting the control in a group that hides with the
+Particles chip would have reintroduced the same complaint. At 0 the vertices are
+steady; particles and pulse are now independent, so the vertices can be defined
+by travelling energy, by breathing, by both, or by neither.
+
 ## Implementation notes
 
 ```
@@ -418,7 +435,16 @@ src/
   points glow and how much structure is drawn are separate decisions. Selection
   walks the golden ratio rather than taking every Nth node: a fixed stride lands
   on the lattice's own periodicity and picks out whole rings or spokes, where an
-  irrational step scatters evenly at any density.
+  irrational step scatters evenly at any density. **The golden step has to be
+  taken against a stable per-node seed, not a running counter.** Keyed off a
+  counter it walks only the nodes that survive, so the moment one emanation
+  shell finishes and stops being drawn, every remaining node shifts one place
+  along the sequence and the whole selection reshuffles — measured, shell 1 kept
+  6 nodes while shell 0 was present and 8 the instant it left. That swap lands
+  in a single frame, which is exactly the momentary flash seen at handover
+  between two shells. Each node now carries a seed fixed at creation
+  (`copy·1024 + index`), so whether a node is kept depends on nothing but the
+  node.
 
 ## Performance
 

@@ -224,6 +224,8 @@ const SPEC = [
   {
     title: 'Energy',
     controls: [
+      { key: 'vertexPulse', label: 'Vertex pulse', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'steady' : `${Math.round(v * 100)}%`) },
+      { key: 'vertexPulseRate', label: 'Pulse rate', min: 0.02, max: 1.5, step: 0.01, when: (s) => s.vertexPulse > 0.005 },
       { key: 'lineWidth', label: 'Line width', min: 0.003, max: 0.04, step: 0.001, read: (v) => v.toFixed(3) },
       { key: 'halo', label: '3D glow', min: 0, max: 0.4, step: 0.005 },
       { key: 'bloom', label: 'Bloom', min: 0, max: 2.5, step: 0.01 },

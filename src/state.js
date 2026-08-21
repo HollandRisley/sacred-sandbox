@@ -123,6 +123,11 @@ export const state = {
   pulseSpeed: 0.16,
   pulseSize: 0.3,    // as small as the slider allows
 
+  // Vertices breathing on their own, independent of anything travelling the
+  // lines. 0 = steady.
+  vertexPulse: 0.55,
+  vertexPulseRate: 0.35,
+
   // Beam: how much of each line is lit at once. 1 = the whole thing (a solid
   // line); 0 = a single particle racing the track and drawing it as it goes.
   beamTail: 1,

@@ -538,7 +538,7 @@ function rebuildLattice() {
   let slot = 0;
   latticeWanted = 0;
 
-  const place = (c, angle, off, fade, shellScale, primary) => {
+  const place = (c, angle, off, fade, shellScale, primary, seed) => {
     latticeWanted++;
     if (slot >= nodePool.length) return;
     const p = nodePool[slot++];
@@ -563,7 +563,7 @@ function rebuildLattice() {
       quat = quatPool[slot - 1].setFromUnitVectors(Z_AXIS, _normal);
     }
 
-    const node = { pos: p, born: c.born, fade, scale, quat, exc: 0 };
+    const node = { pos: p, born: c.born, fade, scale, quat, exc: 0, seed };
     nodes.push(node);
     if (primary) primaryNodes.push(node);
   };
@@ -594,6 +594,7 @@ function rebuildLattice() {
           scale: shellScale * 0.42,
           quat: null,
           exc: 0,
+          seed: sh * 1024 + i,
         };
         latticeWanted++;
         nodes.push(node);
@@ -619,7 +620,12 @@ function rebuildLattice() {
     for (let e = 0; e < echoes; e++) {
       const angle = (e * (Math.PI / 3)) / echoes;
       const fade = (e === 0 ? 1 : 0.55 / (1 + e * 0.35)) * shellFade;
-      for (const c of circles) place(c, angle, ZERO, fade, shellScale, s === 0 && e === 0);
+      // The seed is derived from *which* copy this is, never from how many
+      // nodes happen to have been placed already — see keepNode.
+      const copy = s * 32 + e;
+      for (let ci = 0; ci < circles.length; ci++) {
+        place(circles[ci], angle, ZERO, fade, shellScale, s === 0 && e === 0, copy * 1024 + ci);
+      }
     }
 
     // Depth stacks only the un-echoed figure; echoing every layer as well would
@@ -627,7 +633,11 @@ function rebuildLattice() {
     for (let l = -nLayers; l <= nLayers; l++) {
       if (l === 0) continue;
       const off = layerOffset(l, fittedR);
-      for (const c of circles) place(c, 0, off, (0.5 / (1 + Math.abs(l))) * shellFade, shellScale, false);
+      const copy = s * 32 + 16 + (l + 4);
+      const fade = (0.5 / (1 + Math.abs(l))) * shellFade;
+      for (let ci = 0; ci < circles.length; ci++) {
+        place(circles[ci], 0, off, fade, shellScale, false, copy * 1024 + ci);
+      }
     }
   }
 }
@@ -643,12 +653,36 @@ const BOUNDS = new THREE.Vector3();
  * Which nodes get a marker. Selection walks the golden ratio rather than taking
  * every Nth, because a fixed stride lands on the lattice's own periodicity and
  * picks out whole rings or spokes; an irrational step scatters evenly at any
- * density. Deterministic, so nothing flickers between frames.
+ * density.
+ *
+ * The seed must identify the *node*, not its position in the surviving list.
+ * Counting as we go looked equivalent and was not: the moment an emanating shell
+ * faded below the visibility threshold and was skipped, every later node's index
+ * shifted by one and the entire selection reshuffled — which is exactly the
+ * flash seen as one shell handed over to the next.
  */
-function keepNode(i) {
+/**
+ * Vertex twinkle. Each vertex gets its own phase from the golden ratio, so they
+ * breathe out of step rather than blinking in unison — the difference between
+ * points of energy and a warning light.
+ *
+ * This exists because the vertices *were* already flashing, as a side effect of
+ * comet heads sweeping the edges that meet at them. That looked good and could
+ * not be turned off or up. Now it is a control of its own, and the accidental
+ * version is gone.
+ */
+function vertexBeat(i) {
+  const amt = state.vertexPulse;
+  if (amt < 0.004) return 1;
+  const phase = (i * 0.6180339887) % 1;
+  const b = 0.5 + 0.5 * Math.sin((clock * state.vertexPulseRate + phase) * Math.PI * 2);
+  return 1 - amt + amt * b;
+}
+
+function keepNode(node) {
   const d = state.nodeDensity;
   if (d >= 0.999) return true;
-  return ((i * 0.6180339887) % 1) < d;
+  return (((node.seed ?? 0) * 0.6180339887) % 1) < d;
 }
 let eggCache = [];
 let eggCacheR = -1;
@@ -669,17 +703,17 @@ function paintLattice() {
   const wantRings = state.showRings;
   const wantNodes = state.showNodes && size > 0.004;
 
-  let nodeIndex = 0;
   if (wantRings || wantNodes) {
     for (const n of nodes) {
       const fade = smoothstep(n.born - 0.65, n.born + 0.12, stage) * n.fade;
       if (fade < 0.004) continue;
       if (wantRings) ringList.push({ pos: n.pos, radius: fittedR * n.scale, quat: n.quat, fade });
-      if (wantNodes && keepNode(nodeIndex++)) {
+      if (wantNodes && keepNode(n)) {
+        const b = vertexBeat(n.seed ?? 0);
         nodeList.push({
           pos: n.pos,
-          radius: size * fittedR * n.scale * (1 + n.exc * 0.9),
-          fade: fade * (1 + n.exc * 2.4),
+          radius: size * fittedR * n.scale * (1 + n.exc * 0.9) * (0.6 + b * 0.4),
+          fade: fade * (1 + n.exc * 2.4) * b,
         });
       }
     }
@@ -874,10 +908,11 @@ function updateJoins() {
 
   if (drawing && state.joinNodeSize > 0.001) {
     for (let i = 0; i < active; i++) {
+      const b = vertexBeat(i + 71);
       joinNodeList.push({
         pos: joinPos[i],
-        radius: state.joinNodeSize * size,
-        fade: fade * joinPos[i].weight,
+        radius: state.joinNodeSize * size * (0.6 + b * 0.4),
+        fade: fade * joinPos[i].weight * b,
       });
     }
   }
@@ -940,8 +975,13 @@ function updateSolid() {
     solidLines.setRadius(state.lineWidth);
     for (const [i, j] of derived.edges) solidPaths.push({ pts: [verts[i], verts[j]], fade: 1 });
     if (state.solidNodeSize > 0.001) {
-      for (const v of verts) {
-        solidVertList.push({ pos: v, radius: state.solidNodeSize * joinCurrentSize, fade: 1 });
+      for (let vi = 0; vi < verts.length; vi++) {
+        const b = vertexBeat(vi + 211);
+        solidVertList.push({
+          pos: verts[vi],
+          radius: state.solidNodeSize * joinCurrentSize * (0.6 + b * 0.4),
+          fade: b,
+        });
       }
     }
 
@@ -1119,7 +1159,10 @@ function updatePolytope(dt) {
   vertList.length = 0;
   const vsize = state.polyNodeSize;
   if (vsize > 0.001) {
-    for (let i = 0; i < n; i++) vertList.push({ pos: projected[i], radius: vsize * s, fade: 1 });
+    for (let i = 0; i < n; i++) {
+      const b = vertexBeat(i);
+      vertList.push({ pos: projected[i], radius: vsize * s * (0.6 + b * 0.4), fade: b });
+    }
   }
   polyVerts.set(vertList);
 }
@@ -1658,7 +1701,10 @@ function tick() {
   // particles exactly, so the comet and the particle riding it travel together.
   const beamStyle = PULSE_STYLES[Math.round(state.pulseStyle)] || PULSE_STYLES[0];
   BEAM.time = clock;
-  BEAM.tail = state.beamTail;
+  // With the particles switched off the lines must stop travelling as well.
+  // Leaving the beam running meant comet heads still swept the edges, so the
+  // vertices kept flashing with no control switched on to explain it.
+  BEAM.tail = state.showPulses ? state.beamTail : 1;
   BEAM.count = Math.max(1, Math.round(state.pulses));
   BEAM.speed = state.pulseSpeed * beamStyle.speed;
 
