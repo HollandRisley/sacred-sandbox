@@ -151,12 +151,53 @@ along their host, so the light appears to refract off the energy rather than
 being painted on it. Rainbows take brightness from **Glow** but never a palette
 tint — tinting them would wash seven bands into one colour.
 
-**Pure geometry.** Radial emission from the centre: a ray down each arm, a row
-of spheres released along it one after another, and cones riding out with them,
-the whole thing spinning. **Spread** blends the arm directions from an even ring
-in the mandala's plane to a Fibonacci sphere — latitudes spaced for equal area,
-longitudes turned by the golden angle, so emission stays evenly distributed at
-any arm count instead of clumping at the poles the way a lat/long grid does.
+**Pure geometry.** Radial emission from the centre: a ray down each arm and a
+row of particles released along it one after another. **Spread** blends the arm
+directions from an even ring in the mandala's plane to a Fibonacci sphere —
+latitudes spaced for equal area, longitudes turned by the golden angle, so
+emission stays evenly distributed at any arm count instead of clumping at the
+poles the way a lat/long grid does. **Twist** carries each particle further
+around the axis the further out it has travelled, which turns straight rays into
+spiral emanations.
+
+Particles come as **spheres, flowers or hearts** (`geometry/forms.js` — the
+flower is a parametric petal patch, the heart an extruded bezier outline, both
+normalised so one size slider means the same thing for all three), in three
+surfaces:
+
+- **Matter** — opaque and lit. The only one the depth buffer can sort, and
+  therefore the only one that never layers wrongly. An InstancedMesh cannot sort
+  its own instances, so anything transparent is at the mercy of draw order: this
+  is what fixed distant particles painting over near ones.
+- **Pearl** — translucent and iridescent. Will layer by draw order; that is the
+  trade for the glassy look.
+- **Ember** — additive light. Needs no sorting because additive is commutative.
+  Paired with **Rainbow hue** it gives a true spectrum, because nothing is lit
+  and the instance colour *is* the final colour.
+
+**Rainbow hue** runs the spectrum along each arm. On the lit surfaces it also
+turns the metalness and reflection down as it rises, because at full metal the
+environment drowns the per-instance colour — rainbow hearts came out uniformly
+violet against a violet sky before that.
+
+### Switching a layer off has to stop the work
+
+Not just the drawing. Two bugs of exactly this shape were found and fixed:
+
+- `rebuildLattice` ran unconditionally, so with the circles hidden it still
+  placed every node — thousands, each with a quaternion for the sphere wrap —
+  and then painted none of it. It is now gated on whether anything consumes the
+  lattice at all.
+- The tethers bind the hypercube to lattice nodes, but only ever to
+  `primaryNodes`: one un-echoed, un-stacked copy. So when the lattice exists
+  purely for them, only that copy is built — **61 placements instead of 3660**,
+  for an identical result.
+- `updateJoins` tested `solidBind`, which defaults *on*, so the whole Metatron
+  solve kept running with every layer switched off. It now also requires the
+  solid to actually be drawn.
+
+With every chip off the scene draws **zero instances**. Worth re-checking
+whenever a layer gains a new consumer.
 
 ## WebXR
 

@@ -7,7 +7,9 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 
 import { state } from './state.js';
 import { buildUI, HEAVY_KEYS } from './ui.js';
-import { RingField, SphereField, ConeField, pearlMaterial } from './lib/fields.js';
+import {
+  RingField, SphereField, pearlMaterial, matterMaterial, emberMaterial,
+} from './lib/fields.js';
 import { EnergyLines, PULSE_STYLES, BEAM } from './lib/energy.js';
 import { PALETTES, inkColor, skyTexture } from './lib/palettes.js';
 import {
@@ -25,6 +27,7 @@ import { toMetatronFrame } from './geometry/metatron.js';
 import { toroidStreamline, lapsFor, toroidPoints } from './geometry/toroid.js';
 import { phyllotaxis, goldenSpiral, goldenRectangles } from './geometry/fibonacci.js';
 import { armDirection } from './geometry/emitter.js';
+import { FORMS } from './geometry/forms.js';
 import { metatronSpiral, HEXAGONS } from './geometry/metatronSpiral.js';
 import { PrismHalo } from './lib/prism.js';
 import { saveSetup, loadSetup, clearSetup, applySetup, describeSetup } from './lib/storage.js';
@@ -59,7 +62,6 @@ const MSPIRAL_PER_STEP = 14;
 const MSPIRAL_PTS = (MSPIRAL_STEPS_IN + MSPIRAL_STEPS_OUT) * MSPIRAL_PER_STEP + 1;
 const MAX_ARMS = 60;
 const MAX_BEADS = 10;
-const MAX_CONES = 60;
 const SPIRAL_POINTS = 150;
 const MAX_SPIRALS = 8;
 const MAX_PHYLLO = 400;
@@ -272,9 +274,20 @@ rig.add(nodePrism);
 // Pure geometry — radial emission from the centre.
 const emitterGroup = new THREE.Group();
 const emRayLines = new EnergyLines(MAX_ARMS, MAX_ARMS * PULSE_CAP, { coreOpacity: 0.7, haloOpacity: 0.1 });
-const emBeadField = new SphereField(MAX_ARMS * MAX_BEADS, { material: pearlMaterial(0.8), segments: [14, 10] });
-const emConeField = new ConeField(MAX_CONES, { material: pearlMaterial(0.45) });
-emitterGroup.add(emRayLines, emBeadField, emConeField);
+
+// Form geometries are built once; the look is three materials swapped on the
+// same mesh, because switching `transparent` on a live material forces a shader
+// rebuild while swapping the reference does not.
+const EM_GEOM = FORMS.map((f) => f.build());
+const EM_MATS = [matterMaterial(), pearlMaterial(0.75), emberMaterial(0.9)];
+const emBeads = new THREE.InstancedMesh(EM_GEOM[0], EM_MATS[0], MAX_ARMS * MAX_BEADS);
+emBeads.frustumCulled = false;
+emBeads.count = 0;
+emBeads.setColorAt(0, new THREE.Color(0xffffff));
+// The rainbow: dispersion around each emitted particle, so they read as flaming
+// lights rather than as objects.
+const emPrism = new PrismHalo(MAX_ARMS * MAX_BEADS);
+emitterGroup.add(emRayLines, emPrism, emBeads);
 rig.add(emitterGroup);
 
 // ---------------------------------------------------------------- palette
@@ -348,8 +361,6 @@ function applyLook() {
   merkabaDown.applyTint(palette.poly);
   spiralLines.applyTint(palette.join);
   emRayLines.applyTint(palette.solid);
-  emBeadField.baseColor.copy(_pearlTint);
-  emConeField.baseColor.copy(_pearlTint);
 
   const g = state.glow;
   rings.material.opacity = g;
@@ -368,8 +379,7 @@ function applyLook() {
   tetherLines.setOpacity(g * 0.45, state.halo * 0.6, g * 0.7);
 
   for (const m of [nodeSpheres.material, eggs.material, polyVerts.material,
-    solidFaces.material, phylloSpheres.material, emBeadField.material,
-    emConeField.material]) {
+    solidFaces.material, phylloSpheres.material, EM_MATS[0], EM_MATS[1]]) {
     m.iridescence = Math.min(state.sheen, 1);
     m.envMapIntensity = 1.2 + state.sheen * 1.4;
   }
@@ -447,12 +457,43 @@ function computeFit() {
   outerR = (extent + 1) * fittedR;
 }
 
+/**
+ * Does anything actually consume the lattice this frame?
+ *
+ * The circles and node spheres obviously do, but so does the hypercube when its
+ * vertices are tethered — the tethers bind to `primaryNodes`. Nothing else
+ * touches it, so if none of those are on there is no reason to place a single
+ * node.
+ */
+function latticeNeeded() {
+  if (state.showRings || state.showNodes) return true;
+  if (state.showPoly && state.tethers > 0.01 && Math.round(state.poly) > 0) return true;
+  return false;
+}
+
 function rebuildLattice() {
+  // Switching a layer off has to stop the work, not just the drawing. This ran
+  // unconditionally, so with the circles hidden it still placed every node —
+  // thousands of them, each with a quaternion for the sphere wrap — and then
+  // painted none of it. All cost, no pixels.
+  if (!latticeNeeded()) {
+    nodes.length = 0;
+    primaryNodes.length = 0;
+    latticeWanted = 0;
+    return;
+  }
+
   const extent = Math.round(state.extent);
 
-  const echoes = Math.round(state.echoes);
-  const nLayers = Math.round(state.layers);
-  const shells = Math.round(state.shells);
+  // The tethers only ever reach for `primaryNodes` — one un-echoed, un-stacked
+  // copy of the figure. So when the circles and node spheres are both hidden and
+  // the lattice exists purely for the hypercube to bind to, build that one copy
+  // and nothing else: at extent 4 with six echoes and six shells that is 61
+  // placements instead of 3660, for an identical result.
+  const tethersOnly = !state.showRings && !state.showNodes;
+  const echoes = tethersOnly ? 1 : Math.round(state.echoes);
+  const nLayers = tethersOnly ? 0 : Math.round(state.layers);
+  const shells = tethersOnly ? 0 : Math.round(state.shells);
   const shellCount = Math.max(shells, 1);
   const wrap = state.wrap;
   const sphereR = outerR * 0.85;
@@ -683,13 +724,20 @@ function updateJoins() {
     ? (staged ? smoothstep(6.4, 7.05, state.stage) : 1)
     : 0;
 
-  // The points are solved even when the figure is not drawn, because the lattice
-  // and the bound solid can both be mapped onto them.
+  // The points are solved even when the figure is not drawn, because two other
+  // layers can be mapped onto them — but only while those layers are themselves
+  // being drawn. `solidBind` defaults on, so testing the flag alone kept the
+  // whole Metatron solve running with every layer switched off.
   const drawing = fade > 0.004;
+  const mappedLattice = state.mapToMetatron && (state.showRings || state.showNodes);
+  const boundSolid = state.solidBind && state.showSolid && Math.round(state.solid) > 0;
+
   joinGroup.visible = drawing;
-  if (!drawing && !state.mapToMetatron && !state.solidBind) {
+  if (!drawing && !mappedLattice && !boundSolid) {
     joinLines.setPaths([]);
     joinVerts.set([]);
+    anchorLines.setPaths([]);
+    spokeLines.setPaths([]);
     joinActive = 0;
     return;
   }
@@ -743,7 +791,7 @@ function updateJoins() {
   const threshold = minD + (maxD - minD) * state.joinReach + 1e-4;
 
   let e = 0;
-  for (let i = 0; i < active && e < MAX_JOIN_EDGES; i++) {
+  for (let i = 0; i < active && e < MAX_JOIN_EDGES && drawing; i++) {
     for (let j = i + 1; j < active && e < MAX_JOIN_EDGES; j++) {
       const d = dist4(joinRaw[i], joinRaw[j]);
       if (d > threshold) continue;
@@ -760,7 +808,7 @@ function updateJoins() {
   }
   joinLines.setPaths(joinPaths);
 
-  if (state.joinNodeSize > 0.001) {
+  if (drawing && state.joinNodeSize > 0.001) {
     for (let i = 0; i < active; i++) {
       joinNodeList.push({
         pos: joinPos[i],
@@ -1380,38 +1428,70 @@ function updateMetatronSpirals() {
 
 const armPool = Array.from({ length: MAX_ARMS }, () => new THREE.Vector3());
 const rayPool = Array.from({ length: MAX_ARMS * 2 }, () => new THREE.Vector3());
-const beadPool = Array.from({ length: MAX_ARMS * MAX_BEADS }, () => new THREE.Vector3());
-const conePool = Array.from({ length: MAX_CONES }, () => new THREE.Vector3());
 const rayPaths = [];
-const beadList = [];
-const coneList = [];
 const armTints = Array.from({ length: MAX_ARMS }, () => new THREE.Color());
+const emHosts = [];
+const emHostPool = Array.from({ length: MAX_ARMS * MAX_BEADS }, () => ({
+  pos: new THREE.Vector3(), radius: 0, fade: 0,
+}));
+const _emMat = new THREE.Matrix4();
+const _emQuat = new THREE.Quaternion();
+const _emScale = new THREE.Vector3();
+const _emColor = new THREE.Color();
+const EM_SPIN_AXIS = new THREE.Vector3(0.3, 0.6, 0.74).normalize();
+let emActiveForm = -1;
+let emActiveLook = -1;
+let emLastRainbow = -1;
 
 /**
- * Pure geometry radiating from the centre: a ray down each arm, a row of
- * spheres released along it one after another, and a cone riding out with them.
- * Arm directions come from `armDirection`, which blends a flat ring into a
- * Fibonacci sphere so the same control takes it from rose window to starburst.
+ * Pure geometry radiating from the centre: a ray down each arm, and a row of
+ * particles released along it one after another. Arm directions come from
+ * `armDirection`, which blends a flat ring into a Fibonacci sphere so one
+ * control takes it from rose window to starburst.
+ *
+ * The particles carry the weight of the layer now — form, material, spin, hue
+ * and a spiral twist — so they are managed directly rather than through a field.
  */
 function updateEmitter() {
   rayPaths.length = 0;
-  beadList.length = 0;
-  coneList.length = 0;
+  emHosts.length = 0;
   emitterGroup.visible = state.showEmitter;
   if (!state.showEmitter) {
     emRayLines.setPaths([]);
-    emBeadField.set([]);
-    emConeField.set([]);
+    emBeads.count = 0;
+    emPrism.count = 0;
     return;
+  }
+
+  const form = Math.min(Math.round(state.emForm), FORMS.length - 1);
+  const look = Math.min(Math.round(state.emLook), EM_MATS.length - 1);
+  if (form !== emActiveForm) { emBeads.geometry = EM_GEOM[form]; emActiveForm = form; }
+  if (look !== emActiveLook) { emBeads.material = EM_MATS[look]; emActiveLook = look; }
+
+  // Instance colour tints the diffuse term, but at metalness 0.45 the reflected
+  // environment drowns it — rainbow hearts came out uniformly violet because the
+  // sky is violet. Turning the metal and the reflection down as the rainbow
+  // comes up lets the hue actually be the hue. Only on change: these are
+  // material properties, not per-instance.
+  if (state.emRainbow !== emLastRainbow) {
+    const r = state.emRainbow;
+    for (const m of [EM_MATS[0], EM_MATS[1]]) {
+      m.metalness = 0.45 * (1 - r * 0.85);
+      m.envMapIntensity = 2.4 * (1 - r * 0.65);
+      m.roughness = 0.18 + r * 0.22;
+    }
+    emLastRainbow = r;
   }
 
   emitterGroup.rotation.z = clock * state.emSpin;
 
   const arms = Math.min(Math.round(state.emArms), MAX_ARMS);
   const beads = Math.min(Math.round(state.emBeads), MAX_BEADS);
-  const cones = Math.min(Math.round(state.emCones), MAX_CONES, arms);
   const reach = state.emReach;
   const spread = state.emSpread;
+  const twist = state.emTwist * Math.PI * 2;
+  const rainbow = state.emRainbow;
+  let n = 0;
 
   for (let i = 0; i < arms; i++) {
     const dir = armDirection(i, arms, spread, armPool[i]);
@@ -1424,37 +1504,60 @@ function updateEmitter() {
       rayPaths.push({ pts: [a, b], fade: state.emRays, tint });
     }
 
-    // Beads leave the centre and run out along the arm, fading in as they are
-    // emitted and out as they reach the end.
-    for (let j = 0; j < beads; j++) {
+    for (let j = 0; j < beads && n < emHostPool.length; j++) {
       const u = frac(clock * state.emFlow + j / beads + i * 0.017);
-      const p = beadPool[i * MAX_BEADS + j].copy(dir).multiplyScalar(u * reach);
-      beadList.push({
-        pos: p,
-        radius: state.emBeadSize * (0.45 + u * 0.9),
-        fade: Math.sin(u * Math.PI),
-        tint,
-      });
+      const host = emHostPool[n];
+      host.pos.copy(dir).multiplyScalar(u * reach);
+
+      // The twist is what turns straight rays into spiral emanations: each
+      // particle is carried further around the axis the further out it has
+      // travelled, so a row of them traces a spiral rather than a spoke.
+      if (twist !== 0) {
+        const a = u * twist;
+        const c = Math.cos(a);
+        const sn = Math.sin(a);
+        const x = host.pos.x;
+        host.pos.set(x * c - host.pos.y * sn, x * sn + host.pos.y * c, host.pos.z);
+      }
+
+      const fade = Math.sin(u * Math.PI);
+      host.radius = state.emBeadSize * (0.45 + u * 0.9);
+      host.fade = fade;
+
+      // Rainbow runs the hue along the arm, so a stream of hearts or flowers
+      // cycles the spectrum as it travels rather than being one flat colour.
+      if (rainbow > 0.004) {
+        _emColor.setHSL(frac(state.hue + u + (i / arms) * 0.3), 0.95, 0.6);
+        _emColor.lerp(tint, 1 - rainbow);
+      } else {
+        _emColor.copy(tint);
+      }
+      // Matter is lit rather than additive, so fading it toward black would
+      // read as dirt. Its brightness comes from the light instead.
+      const shade = look === 0 ? 0.35 + fade * 0.65 : fade;
+      _emColor.multiplyScalar(Math.max(shade, 0));
+
+      _emQuat.setFromAxisAngle(EM_SPIN_AXIS, clock * state.emTumble + i * 0.7 + j);
+      _emScale.setScalar(host.radius);
+      _emMat.compose(host.pos, _emQuat, _emScale);
+      emBeads.setMatrixAt(n, _emMat);
+      emBeads.setColorAt(n, _emColor);
+      emHosts.push(host);
+      n++;
     }
   }
 
-  for (let i = 0; i < cones; i++) {
-    const dir = armPool[i % arms];
-    const u = frac(clock * state.emFlow * 0.5 + i / cones);
-    const p = conePool[i].copy(dir).multiplyScalar(0.25 + u * reach * 0.85);
-    coneList.push({
-      pos: p,
-      dir,
-      length: state.emConeLength,
-      width: state.emConeSize,
-      fade: Math.sin(u * Math.PI) * 0.9,
-      tint: armTints[i % arms],
-    });
-  }
-
+  emBeads.count = n;
+  emBeads.instanceMatrix.needsUpdate = true;
+  if (emBeads.instanceColor) emBeads.instanceColor.needsUpdate = true;
   emRayLines.setPaths(rayPaths);
-  emBeadField.set(beadList);
-  emConeField.set(coneList);
+
+  if (state.prism > 0.004 && n > 0) {
+    emPrism.faceCamera(camera);
+    emPrism.set(emHosts, state.prismSize * 2.6, state.prism);
+  } else {
+    emPrism.count = 0;
+  }
 }
 
 // ---------------------------------------------------------------- loop

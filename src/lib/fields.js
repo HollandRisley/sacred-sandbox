@@ -79,6 +79,50 @@ export function pearlMaterial(opacity = 0.5) {
   });
 }
 
+/**
+ * MATTER — an opaque, lit surface.
+ *
+ * Everything else here is transparent, which is why the emitted particles were
+ * layering wrongly: an InstancedMesh cannot sort its own instances, so with
+ * `depthWrite: false` the draw order decides what covers what and a distant
+ * particle painted over a near one.
+ *
+ * This writes depth and is not transparent at all, so it renders in the opaque
+ * pass and the depth buffer sorts it exactly. It also reads as solid rather than
+ * glassy, which is the point — iridescence and a bright environment keep it
+ * looking like energy that has become matter rather than like plastic.
+ */
+export function matterMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    metalness: 0.45,
+    roughness: 0.18,
+    iridescence: 1,
+    iridescenceIOR: 1.9,
+    iridescenceThicknessRange: [140, 900],
+    envMapIntensity: 2.4,
+    emissive: 0x000000,
+    transparent: false,
+    depthWrite: true,
+    side: THREE.FrontSide,
+  });
+}
+
+/**
+ * EMBER — pure light, no surface. Additive, so it never occludes and never
+ * needs sorting; the trade is that it has no solidity at all.
+ */
+export function emberMaterial(opacity = 0.9) {
+  return new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+}
+
 /** Rings drawn as instanced tori — already tubes, so already glowing volume. */
 export class RingField extends Field {
   constructor(max, opts = {}) {
@@ -99,40 +143,6 @@ export class RingField extends Field {
     this._commit(n);
   }
 }
-
-/**
- * Cones, each aimed along a direction rather than positioned by a matrix the
- * caller has to build. three.js builds cones pointing +Y, so the quaternion
- * turns that onto the requested axis.
- */
-export class ConeField extends Field {
-  constructor(max, opts = {}) {
-    super(
-      new THREE.ConeGeometry(0.5, 1, opts.radialSegments ?? 14, 1, true),
-      opts.material || neonMaterial(opts.opacity ?? 1),
-      max,
-      opts,
-    );
-    this._axis = new THREE.Vector3();
-  }
-
-  /** @param {Array<{pos, dir, length, width, fade?, tint?}>} cones */
-  set(cones) {
-    const n = Math.min(cones.length, this.instanceMatrix.count);
-    for (let i = 0; i < n; i++) {
-      const c = cones[i];
-      this._axis.copy(c.dir).normalize();
-      this._q.setFromUnitVectors(CONE_UP, this._axis);
-      this._s.set(c.width, c.length, c.width);
-      this._m.compose(c.pos, this._q, this._s);
-      this.setMatrixAt(i, this._m);
-      this._writeColor(i, c.fade ?? 1, c.tint);
-    }
-    this._commit(n);
-  }
-}
-
-const CONE_UP = new THREE.Vector3(0, 1, 0);
 
 /** Spheres — lattice nodes, polytope vertices, pulses. */
 export class SphereField extends Field {

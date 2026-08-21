@@ -4,6 +4,7 @@ import { SOLIDS } from './geometry/platonic.js';
 import { POLYTOPES } from './geometry/polytope4d.js';
 import { PALETTES } from './lib/palettes.js';
 import { PULSE_STYLES } from './lib/energy.js';
+import { FORMS } from './geometry/forms.js';
 import { interpret } from './ai.js';
 
 const stageAt = (v) => STAGES[Math.min(STAGES.length - 1, Math.max(0, Math.round(v) - 1))];
@@ -193,19 +194,23 @@ const SPEC = [
     title: 'Pure geometry',
     owner: 'showEmitter',
     when: (s) => s.showEmitter,
-    note: 'Radial emission from the centre. Spread takes the arms from a flat rose window to a Fibonacci sphere.',
+    note: 'Particles released from the centre along each arm. Spread takes the arms from a flat rose window to a Fibonacci sphere; Twist carries each particle further around the further out it goes, which turns straight rays into spirals.',
     controls: [
+      { key: 'emForm', label: 'Form', min: 0, max: FORMS.length - 1, step: 1, read: (v) => FORMS[v].name },
+      // Matter is the only opaque option, so it is the only one whose instances
+      // the depth buffer can sort. The others will layer by draw order.
+      { key: 'emLook', label: 'Surface', min: 0, max: 2, step: 1, read: (v) => ['Matter — solid, sorts correctly', 'Pearl — translucent', 'Ember — pure light'][v] },
+      { key: 'emBeadSize', label: 'Size', min: 0.01, max: 0.4, step: 0.005 },
+      { key: 'emRainbow', label: 'Rainbow hue', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'palette' : v > 0.995 ? 'full spectrum' : v.toFixed(2)) },
+      { key: 'emTwist', label: 'Spiral twist', min: -2, max: 2, step: 0.01, read: (v) => (Math.abs(v) < 0.005 ? 'straight rays' : `${(v * 360).toFixed(0)}° over the reach`) },
+      { key: 'emTumble', label: 'Tumble', min: 0, max: 2, step: 0.01 },
       { key: 'emArms', label: 'Arms', min: 1, max: 60, step: 1 },
+      { key: 'emBeads', label: 'Per arm', min: 0, max: 10, step: 1, read: (v) => (v === 0 ? 'off' : `${v}`) },
       { key: 'emSpread', label: 'Spread', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'flat ring' : v > 0.995 ? 'full sphere' : v.toFixed(2)) },
       { key: 'emReach', label: 'Reach', min: 0.5, max: 6, step: 0.01 },
-      { key: 'emRays', label: 'Rays', min: 0, max: 1.5, step: 0.01, read: (v) => (v < 0.005 ? 'off' : v.toFixed(2)) },
-      { key: 'emBeads', label: 'Spheres per arm', min: 0, max: 10, step: 1, read: (v) => (v === 0 ? 'off' : `${v}`) },
-      { key: 'emBeadSize', label: 'Sphere size', min: 0.01, max: 0.3, step: 0.005 },
-      { key: 'emCones', label: 'Cones', min: 0, max: 60, step: 1, read: (v) => (v === 0 ? 'off' : `${v}`) },
-      { key: 'emConeSize', label: 'Cone width', min: 0.05, max: 1.2, step: 0.01 },
-      { key: 'emConeLength', label: 'Cone length', min: 0.1, max: 2, step: 0.01 },
       { key: 'emFlow', label: 'Emission', min: -0.6, max: 0.6, step: 0.005 },
       { key: 'emSpin', label: 'Spin', min: -0.8, max: 0.8, step: 0.01 },
+      { key: 'emRays', label: 'Rays', min: 0, max: 1.5, step: 0.01, read: (v) => (v < 0.005 ? 'off' : v.toFixed(2)) },
     ],
   },
   {
@@ -250,7 +255,7 @@ export function buildUI(onChange, onLayout, store) {
   const CAPTIONS = [
     ['showJoins', 'Metatron’s Cube', 'Thirteen points joined every way: a hexagon in two dimensions, a cuboctahedron in three, the 24-cell in four. Each is the arrangement where the distance to the centre equals the distance between neighbours.'],
     ['showCore', 'Singularity', 'Each lattice node lifted through the Hopf fibration into a circle in four-dimensional space, every pair linked. Depth stacks the figure at nested scales that climb outward forever.'],
-    ['showEmitter', 'Pure geometry', 'Rays, cones and rows of spheres released from the centre. Spread carries the arms from a flat rose window to a Fibonacci sphere.'],
+    ['showEmitter', 'Pure geometry', 'Particles released from the centre along each arm \u2014 spheres, flowers or hearts. Spread carries the arms from a flat rose window to a Fibonacci sphere; Twist turns the rays into spirals.'],
     ['showToroid', 'Toroid', 'Flow rises through the centre, turns over, and returns around the outside. Its strands are bound to the merkaba turning inside it.'],
     ['showMerkaba', 'Merkaba', 'Two tetrahedra, one inverted, turning against each other.'],
     ['showPoly', 'Fourth dimension', 'A regular 4-polytope turning in planes that have no axis in our space, projected down into it.'],

@@ -85,11 +85,13 @@ export const state = {
   emRays: 1,
   emBeads: 6,
   emBeadSize: 0.06,
-  emCones: 12,
-  emConeSize: 0.3,
-  emConeLength: 0.55,
   emFlow: 0.18,
   emSpin: 0.08,
+  emForm: 0,        // 0 spheres, 1 flowers, 2 hearts
+  emLook: 0,        // 0 matter (opaque, sorts correctly), 1 pearl, 2 ember
+  emTwist: 0.35,    // turns straight rays into spiral emanations
+  emTumble: 0.4,    // each particle turning on its own axis
+  emRainbow: 0,     // hue cycled along each arm
 
   // Platonic
   solid: 5,
@@ -177,8 +179,11 @@ export const PRESETS = {
   prism: { prism: 1.6, prismSize: 1.4, pulses: 2, showPulses: true },
   drawn: { beamTail: 0.18, pulses: 1, pulseSize: 0.45, pulseSpeed: 0.14, prism: 1.4, showPulses: true },
   comets: { beamTail: 0.06, pulses: 3, pulseSize: 0.5, pulseSpeed: 0.22, prism: 1.6, showPulses: true },
-  geometry: { ...only('showEmitter', 'showCore'), emArms: 14, emSpread: 0, emReach: 3.2, emBeads: 7, emCones: 14, emFlow: 0.2, emSpin: 0.1, fibres: 5 },
-  sphereburst: { ...only('showEmitter'), emArms: 60, emSpread: 1, emReach: 3.4, emBeads: 5, emCones: 40, emConeSize: 0.18, emFlow: 0.24, emSpin: 0.05 },
+  geometry: { ...only('showEmitter', 'showCore'), emArms: 14, emSpread: 0, emReach: 3.2, emBeads: 7, emFlow: 0.2, emSpin: 0.1, emForm: 0, emLook: 0, emTwist: 0.35, fibres: 5 },
+  sphereburst: { ...only('showEmitter'), emArms: 60, emSpread: 1, emReach: 3.4, emBeads: 5, emFlow: 0.24, emSpin: 0.05, emForm: 0, emLook: 0, emTwist: 0.2 },
+  flowers: { ...only('showEmitter'), emForm: 1, emLook: 0, emArms: 10, emBeads: 6, emSpread: 0.25, emReach: 3.2, emBeadSize: 0.16, emTwist: 0.5, emTumble: 0.3, emFlow: 0.16, prism: 1.1 },
+  hearts: { ...only('showEmitter'), emForm: 2, emLook: 0, emRainbow: 1, emArms: 12, emBeads: 6, emSpread: 0.35, emReach: 3.2, emBeadSize: 0.14, emTwist: 0.45, emTumble: 0.5, emFlow: 0.16, prism: 1.4 },
+  spiralburst: { ...only('showEmitter', 'showCore'), emForm: 0, emLook: 2, emArms: 28, emBeads: 9, emSpread: 0.5, emReach: 3.6, emBeadSize: 0.07, emTwist: 1.1, emFlow: 0.22, emRainbow: 0.7, prism: 1.6, fibres: 7 },
   // Each element occupies its own radius so they read as layers of one object
   // rather than merging: merkaba at the core, toroid as a ring outside the
   // wrapped shells, spirals reaching past both.
