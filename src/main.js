@@ -28,6 +28,7 @@ import { toroidStreamline, lapsFor, toroidPoints } from './geometry/toroid.js';
 import { phyllotaxis, goldenSpiral, goldenRectangles } from './geometry/fibonacci.js';
 import { armDirection } from './geometry/emitter.js';
 import { FORMS } from './geometry/forms.js';
+import { edgeTrails, isClosed } from './geometry/trails.js';
 import { loadSpriteFolder, resolveSprites, spriteTexture } from './lib/sprites.js';
 import { metatronSpiral, HEXAGONS } from './geometry/metatronSpiral.js';
 import { PrismHalo } from './lib/prism.js';
@@ -430,7 +431,28 @@ function prepareSpriteMesh(slot, id, look) {
 
 // ---------------------------------------------------------------- palette
 
+const _sparkTint = new THREE.Color();
 const palette = { ring: new THREE.Color(), join: new THREE.Color(), solid: new THREE.Color(), poly: new THREE.Color() };
+
+/**
+ * PER-LAYER COLOUR
+ *
+ * Every layer used to draw straight from the same four palette inks, so the
+ * whole piece came out in one family and the layers ran together. Each layer now
+ * holds its own pair of colours, taken from the palette but turned around the
+ * hue circle by that layer's own amount — so the Metatron can be gold while the
+ * hypercube is cyan and the toroid violet, without leaving the palette behind.
+ *
+ * Two colours rather than one because most layers already carry a gradient
+ * inside themselves — depth in the hypercube, distance along an arm, one
+ * strand against the next. Shifting the pair together keeps that internal
+ * shape and moves the layer as a whole.
+ */
+const layer = {};
+for (const k of ['rings', 'joins', 'solid', 'poly', 'core', 'merkaba', 'toroid', 'fib', 'emitter']) {
+  layer[k] = new THREE.Color();
+  layer[`${k}Alt`] = new THREE.Color();
+}
 const WHITE = new THREE.Color(0xffffff);
 const _pearlTint = new THREE.Color();
 const _pearlTint2 = new THREE.Color();
@@ -473,33 +495,55 @@ function applyLook() {
   palette.solid.copy(inkColor(pal, 2, state.hue));
   palette.poly.copy(inkColor(pal, 3, state.hue));
 
-  rings.baseColor.copy(palette.ring);
-  boundRings.baseColor.copy(palette.ring);
-  ringHalo.baseColor.copy(palette.ring);
+  // Each layer's pair, turned by its own offset on top of the global hue.
+  const setLayer = (name, a, b, off) => {
+    layer[name].copy(inkColor(pal, a, state.hue + off));
+    layer[`${name}Alt`].copy(inkColor(pal, b, state.hue + off));
+  };
+  setLayer('rings', 0, 1, state.hueRings);
+  setLayer('joins', 1, 0, state.hueJoins);
+  setLayer('solid', 2, 3, state.hueSolid);
+  setLayer('poly', 3, 1, state.huePoly);
+  setLayer('core', 0, 3, state.hueCore);
+  setLayer('merkaba', 2, 3, state.hueMerkaba);
+  setLayer('toroid', 1, 0, state.hueToroid);
+  setLayer('fib', 2, 0, state.hueFib);
+  setLayer('emitter', 2, 0, state.hueEmitter);
+
+  rings.baseColor.copy(layer.rings);
+  boundRings.baseColor.copy(layer.rings);
+  ringHalo.baseColor.copy(layer.rings);
 
   // Pearl surfaces get a washed-out tint rather than the full palette colour:
   // instance colour multiplies the reflection, so a saturated base would filter
   // the environment down to a single hue and kill the iridescence. Sheen sets
   // how far that goes, taking the surfaces from coloured glass to nacre.
   const wash = Math.min(0.2 + state.sheen * 0.32, 0.85);
-  _pearlTint.copy(palette.ring).lerp(WHITE, wash);
+  _pearlTint.copy(layer.rings).lerp(WHITE, wash);
+  // The sparks want to be brighter than the pearl surfaces: a node marker is
+  // meant to read as a point of light, and at full palette saturation over a
+  // dark ground it reads as a coloured smudge instead.
+  _sparkTint.copy(layer.rings).lerp(WHITE, 0.5);
   nodeSpheres.baseColor.copy(_pearlTint);
   nodeGlow.material.opacity = state.glow;
+  // The glow field alone takes the spark colour; the pearl and matter spheres
+  // keep their own washed tint so Sheen still means something for them.
+  nodeGlow.tint = _sparkTint;
   eggs.baseColor.copy(_pearlTint);
-  phylloSpheres.baseColor.copy(_pearlTint2.copy(palette.solid).lerp(WHITE, wash));
+  phylloSpheres.baseColor.copy(_pearlTint2.copy(layer.fib).lerp(WHITE, wash));
 
-  joinLines.applyTint(palette.join);
-  solidLines.applyTint(palette.solid);
-  rectLines.applyTint(palette.solid);
-  polyLines.applyTint(palette.poly);
-  polyVerts.baseColor.copy(_pearlTint2.copy(palette.poly).lerp(WHITE, wash));
-  tetherLines.applyTint(palette.join);
-  coreLines.applyTint(palette.ring);
-  for (const l of strandLines) l.applyTint(palette.join);
-  merkabaUp.applyTint(palette.solid);
-  merkabaDown.applyTint(palette.poly);
-  spiralLines.applyTint(palette.join);
-  emRayLines.applyTint(palette.solid);
+  joinLines.applyTint(layer.joins);
+  solidLines.applyTint(layer.solid);
+  rectLines.applyTint(layer.fib);
+  polyLines.applyTint(layer.poly);
+  polyVerts.baseColor.copy(_pearlTint2.copy(layer.poly).lerp(WHITE, wash));
+  tetherLines.applyTint(layer.joins);
+  coreLines.applyTint(layer.core);
+  for (const l of strandLines) l.applyTint(layer.toroid);
+  merkabaUp.applyTint(layer.merkaba);
+  merkabaDown.applyTint(layer.merkabaAlt);
+  spiralLines.applyTint(layer.fib);
+  emRayLines.applyTint(layer.emitter);
 
   const g = state.glow;
   rings.material.opacity = g;
@@ -514,7 +558,7 @@ function applyLook() {
   // Metatron's 78 lines all converge on one point; at full brightness the
   // centre of the figure saturates to white and the structure disappears.
   joinLines.setOpacity(g * 0.6, state.halo * 0.7, g * 0.8);
-  mspiralLines.applyTint(palette.join);
+  mspiralLines.applyTint(layer.joins);
   tetherLines.setOpacity(g * 0.45, state.halo * 0.6, g * 0.7);
 
   for (const m of [nodeSpheres.material, eggs.material, polyVerts.material,
@@ -528,7 +572,7 @@ function applyLook() {
   scene.environmentIntensity = 1.4 + state.sheen * 1.5;
   nodeSolids.material.iridescence = Math.min(state.sheen, 1);
   nodeSolids.material.envMapIntensity = 1.2 + state.sheen * 1.4;
-  solidFaces.material.color.copy(_pearlTint2.copy(palette.solid).lerp(WHITE, wash));
+  solidFaces.material.color.copy(_pearlTint2.copy(layer.solid).lerp(WHITE, wash));
   solidFaces.material.opacity = state.solidFaces;
   solidFaces.visible = state.solidFaces > 0.004;
 
@@ -928,6 +972,15 @@ const joinPos = METATRON_POINTS.map(() => new THREE.Vector3());
 const joinRaw = METATRON_POINTS.map(() => [0, 0, 0, 0]);
 const joinEdgePool = Array.from({ length: MAX_JOIN_EDGES * 2 }, () => new THREE.Vector3());
 const joinTints = Array.from({ length: MAX_JOIN_EDGES }, () => new THREE.Color());
+
+// Metatron's edge set is not fixed: which pairs are close enough to join
+// depends on Edge reach, and past three dimensions the distances themselves
+// change as the figure turns. The trails are therefore rebuilt whenever the set
+// of pairs changes and reused when it has not — recognised by a running hash of
+// the pairs, which costs nothing and allocates nothing on the frames in between.
+const joinPairs = [];
+let joinTrails = [];
+let joinTrailHash = -1;
 const joinNodeList = [];
 const _join4 = [0, 0, 0, 0];
 
@@ -1022,20 +1075,52 @@ function updateJoins() {
   const threshold = minD + (maxD - minD) * state.joinReach + 1e-4;
 
   let e = 0;
+  joinPairs.length = 0;
+  let hash = 17;
   for (let i = 0; i < active && e < MAX_JOIN_EDGES && drawing; i++) {
     for (let j = i + 1; j < active && e < MAX_JOIN_EDGES; j++) {
-      const d = dist4(joinRaw[i], joinRaw[j]);
-      if (d > threshold) continue;
-      const a = joinEdgePool[e * 2].copy(joinPos[i]);
-      const b = joinEdgePool[e * 2 + 1].copy(joinPos[j]);
-      const w = Math.min(joinPos[i].weight, joinPos[j].weight);
-      // Short edges — the polyhedron's own skeleton — run brighter than the
-      // long diagonals, so the solid stays readable inside the full web.
-      const near = 1 - Math.min((d - minD) / Math.max(maxD - minD, 1e-4), 1);
-      joinTints[e].copy(palette.join).lerp(palette.ring, 1 - near);
-      joinPaths.push({ pts: [a, b], fade: fade * w * (0.35 + near * 0.65), tint: joinTints[e] });
+      if (dist4(joinRaw[i], joinRaw[j]) > threshold) continue;
+      joinPairs.push([i, j]);
+      hash = (hash * 31 + i * 64 + j) | 0;
       e++;
     }
+  }
+  if (hash !== joinTrailHash) {
+    joinTrails = edgeTrails(joinPairs, active).map((t) => {
+      const closed = isClosed(t);
+      const ids = closed ? t.slice(0, -1) : t;
+      const n = closed ? ids.length : ids.length - 1;
+      return {
+        ids,
+        closed,
+        pts: new Array(ids.length),
+        // Built with the trail, not with the frame: these are refilled in place
+        // every frame and only reallocated when the edge set itself changes.
+        tints: Array.from({ length: n }, () => new THREE.Color()),
+        segFades: new Float32Array(n),
+      };
+    });
+    joinTrailHash = hash;
+  }
+
+  // Walked rather than scattered, for the same reason as the hypercube: a pulse
+  // on a two-point path cannot turn a corner, so the web blinked instead of
+  // being traced. Each segment keeps its own colour and weight — the short
+  // edges are the polyhedron's own skeleton and run brighter than the long
+  // diagonals, which is what keeps the solid readable inside the full web.
+  for (const trail of joinTrails) {
+    const { ids, pts, tints, segFades } = trail;
+    for (let i = 0; i < ids.length; i++) pts[i] = joinPos[ids[i]];
+    for (let i = 0; i < tints.length; i++) {
+      const a = ids[i];
+      const b = ids[(i + 1) % ids.length];
+      const d = dist4(joinRaw[a], joinRaw[b]);
+      const near = 1 - Math.min((d - minD) / Math.max(maxD - minD, 1e-4), 1);
+      const w = Math.min(joinPos[a].weight, joinPos[b].weight);
+      tints[i].copy(layer.joins).lerp(layer.joinsAlt, 1 - near);
+      segFades[i] = w * (0.35 + near * 0.65);
+    }
+    joinPaths.push({ pts, tints, segFades, closed: trail.closed, fade });
   }
   joinLines.setPaths(joinPaths);
 
@@ -1106,7 +1191,8 @@ function updateSolid() {
     for (const v of verts) v.multiplyScalar(joinCurrentSize);
 
     solidLines.setRadius(state.lineWidth);
-    for (const [i, j] of derived.edges) solidPaths.push({ pts: [verts[i], verts[j]], fade: 1 });
+    // Walked, so a pulse goes round the solid instead of blinking edge to edge.
+    trailPaths(cachedTrails(`derived:${kind}`, derived.edges, verts.length), verts, solidPaths);
     if (state.solidNodeSize > 0.001) {
       for (let vi = 0; vi < verts.length; vi++) {
         const b = vertexBeat(vi + 211);
@@ -1175,7 +1261,7 @@ function updateSolid() {
           spokePaths.push({
             pts: [a, b],
             fade: state.solidSpokes * (m.exact ? 1 : 0.45),
-            tint: m.exact ? palette.solid : palette.poly,
+            tint: m.exact ? layer.solid : layer.solidAlt,
           });
         }
       }
@@ -1188,7 +1274,7 @@ function updateSolid() {
     // Tube radius is in local space, so undo the group scale to keep the
     // linework a constant apparent thickness as the solid grows.
     solidLines.setRadius(state.lineWidth / sc);
-    for (const [a, b] of def.edges) solidPaths.push({ pts: [a, b], fade: 1 });
+    trailPaths(cachedTrails(`solid:${idx}`, def.indexEdges, def.points.length), def.points, solidPaths);
     solidFaces.visible = state.solidFaces > 0.004;
     solidFaces.scale.setScalar(1);
     solidFaces.quaternion.identity();
@@ -1245,6 +1331,62 @@ const polyPaths = [];
 const vertList = [];
 let polyCount = 0;
 
+/**
+ * The polytope's edges chained into continuous walks, worked out once per
+ * figure. Which vertices a trail visits never changes — only where they are —
+ * so the chains, their point arrays and their colours are all built on first
+ * sight of a polytope and refilled in place afterwards, and the per-frame cost
+ * is the same as the loose edges it replaces.
+ */
+const polyTrailCache = new Map();
+
+/**
+ * The same walk for any figure given as indexed edges. Cached on a key of the
+ * caller's choosing, since the topology is fixed even while the points move.
+ */
+const trailCache = new Map();
+
+function cachedTrails(key, edges, vertexCount) {
+  let cached = trailCache.get(key);
+  if (cached) return cached;
+  cached = edgeTrails(edges, vertexCount).map((t) => {
+    const closed = isClosed(t);
+    const ids = closed ? t.slice(0, -1) : t;
+    return { ids, closed, pts: new Array(ids.length) };
+  });
+  trailCache.set(key, cached);
+  return cached;
+}
+
+/** Fill a cached trail's point array from a positions list and hand it over. */
+function trailPaths(trails, positions, out, fade = 1, tint) {
+  for (const trail of trails) {
+    const { ids, pts } = trail;
+    for (let i = 0; i < ids.length; i++) pts[i] = positions[ids[i]];
+    out.push({ pts, closed: trail.closed, fade, tint });
+  }
+}
+
+function polyTrails(idx, def) {
+  let cached = polyTrailCache.get(idx);
+  if (cached) return cached;
+  cached = edgeTrails(def.edges, def.verts.length).map((t) => {
+    // A closed walk drops its repeated last vertex and lets the renderer wrap,
+    // so a pulse goes round forever instead of stopping where it started.
+    const closed = isClosed(t);
+    const ids = closed ? t.slice(0, -1) : t;
+    const segs = closed ? ids.length : ids.length - 1;
+    return {
+      ids,
+      closed,
+      pts: new Array(ids.length),
+      tints: Array.from({ length: segs }, () => new THREE.Color()),
+    };
+  });
+  polyTrailCache.set(idx, cached);
+  return cached;
+}
+
 function updatePolytope(dt) {
   angles.xw += state.rotXW * dt;
   angles.yw += state.rotYW * dt;
@@ -1279,13 +1421,25 @@ function updatePolytope(dt) {
 
   // Colour by depth in w: edges nearer the 4D viewpoint run hot, far ones cold.
   const span = Math.max(maxW - minW, 1e-4);
+  // ONE WALK, NOT THIRTY-TWO SEGMENTS
+  //
+  // Each edge used to be its own two-point path. A pulse on a two-point path
+  // has a single segment to live on, and every path is given its own phase, so
+  // the figure blinked chords at random instead of being traced — nothing ever
+  // turned a corner, because there was no corner to turn. Chained into trails,
+  // the light enters a vertex on one edge and leaves on another, and the
+  // tesseract's thirty-two edges become a single closed circuit.
   polyPaths.length = 0;
-  for (let e = 0; e < def.edges.length; e++) {
-    const [i, j] = def.edges[e];
-    const t = ((wValues[i] + wValues[j]) / 2 - minW) / span;
-    const tint = polyTints[e];
-    tint.copy(palette.poly).lerp(palette.join, t).multiplyScalar(0.55 + t * 0.75);
-    polyPaths.push({ pts: [projected[i], projected[j]], fade: 1, tint });
+  for (const trail of polyTrails(idx, def)) {
+    const { ids, pts, tints } = trail;
+    for (let i = 0; i < ids.length; i++) pts[i] = projected[ids[i]];
+    for (let i = 0; i < tints.length; i++) {
+      const a = ids[i];
+      const b = ids[(i + 1) % ids.length];
+      const t = ((wValues[a] + wValues[b]) / 2 - minW) / span;
+      tints[i].copy(layer.poly).lerp(layer.polyAlt, t).multiplyScalar(0.55 + t * 0.75);
+    }
+    polyPaths.push({ pts, tints, closed: trail.closed, fade: 1 });
   }
   polyLines.setPaths(polyPaths);
 
@@ -1412,7 +1566,7 @@ function updateCore() {
 
       const t = count > 1 ? i / (count - 1) : 0;
       const tint = coreTints[(d * MAX_FIBRES + i) % coreTints.length];
-      tint.copy(palette.ring).lerp(palette.poly, t);
+      tint.copy(layer.core).lerp(layer.coreAlt, t);
       // Inner levels run hotter, so the eye is pulled toward where they emerge.
       tint.lerp(WHITE, 0.35 * (1 - step / Math.max(depth, 1)));
       corePaths.push({
@@ -1472,8 +1626,8 @@ function updateToroid() {
       const phase = ((i / perStrand) + (sIdx / strands) / perStrand) * Math.PI * 2 + drift;
       const pts = toroidStreamline(state.torMajor, state.torMinor, windings, phase, laps, pts_n, takeTorPoint);
       const tint = torTints[(sIdx * 7 + i) % torTints.length];
-      tint.copy(sIdx % 2 === 0 ? palette.join : palette.poly)
-        .lerp(palette.ring, i / Math.max(perStrand - 1, 1));
+      tint.copy(sIdx % 2 === 0 ? layer.toroid : layer.toroidAlt)
+        .lerp(layer.toroid, i / Math.max(perStrand - 1, 1) * 0.5);
       paths.push({ pts, closed: true, fade: 0.8, tint, phase: i / perStrand });
     }
     strandLines[sIdx].setPaths(paths);
@@ -1648,7 +1802,7 @@ function updateMetatronSpirals() {
       }
     }
 
-    const tint = mspiralTints[i].copy(palette.join).lerp(palette.ring, i / Math.max(count - 1, 1));
+    const tint = mspiralTints[i].copy(layer.joins).lerp(layer.joinsAlt, i / Math.max(count - 1, 1));
 
     // One path for the whole spiral, carrying a per-point fade. Splitting it
     // into separately-faded runs would restart the beam's comet at every join;
@@ -1768,7 +1922,7 @@ function updateEmitter() {
   for (let i = 0; i < arms; i++) {
     const dir = armDirection(i, arms, spread, armPool[i]);
     const tint = armTints[i];
-    tint.copy(palette.solid).lerp(palette.ring, i / Math.max(arms - 1, 1));
+    tint.copy(layer.emitter).lerp(layer.emitterAlt, i / Math.max(arms - 1, 1));
 
     if (state.emRays > 0.004) {
       const a = rayPool[i * 2].set(0, 0, 0);
@@ -1792,7 +1946,16 @@ function updateEmitter() {
         host.pos.set(x * c - host.pos.y * sn, x * sn + host.pos.y * c, host.pos.z);
       }
 
-      const fade = Math.sin(u * Math.PI);
+      // EMISSION STARTS AT THE CENTRE
+      //
+      // This was sin(u·π), which is *zero* at u = 0 — so a particle was
+      // invisible exactly where it was born and only faded up a third of the
+      // way out. The emission read as coming from a shell around the middle
+      // rather than from the point everything else in the piece is built
+      // around. It now reaches full strength within the first few percent of
+      // the ray and keeps it until it dissolves at the rim, so the stream is
+      // continuous from the centre of the Metatron and the hypercube outward.
+      const fade = Math.min(u / 0.06, 1) * (1 - smoothstep(0.72, 1, u));
       host.radius = state.emBeadSize * (0.45 + u * 0.9);
       host.fade = fade;
 

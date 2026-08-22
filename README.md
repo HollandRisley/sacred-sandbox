@@ -243,6 +243,14 @@ turns the metalness and reflection down as it rises, because at full metal the
 environment drowns the per-instance colour — rainbow hearts came out uniformly
 violet against a violet sky before that.
 
+**Emission starts at the centre.** The particle fade was `sin(u·π)`, which is
+*zero* at u = 0 — so a particle was invisible exactly where it was born and only
+faded up a third of the way out. The emission read as coming from a shell around
+the middle rather than from the point the whole piece is built around. It now
+reaches full strength within the first few percent of the ray, so the stream is
+continuous from the shared centre of the Metatron, the hypercube and the merkaba
+outward.
+
 **Images.** A fourth form: the particle is a picture. Two sources, one library —
 `public/particles/`, listed by a `manifest.json` (drop a file in, add a line,
 and it is pickable), and anything added through the panel, which is downscaled
@@ -310,6 +318,55 @@ Three changes, each of which is also the physically truer thing:
 Measured on the generated texture, the halo now emits **R 0.335 : G 0.336 :
 B 0.329** — neutral white light. The colour is all in the fringe, where
 dispersion actually puts it.
+
+### A pulse cannot turn a corner it was never given
+
+Every figure made of edges was handed over as a list of two-point paths. A pulse
+on a two-point path has one segment to live on: it appears, crosses, and dies —
+and since each path is given its own phase, a figure of thirty-two edges blinked
+thirty-two unrelated chords rather than being traced. Nothing ever went round a
+square, because as far as the renderer was concerned there was no square, only
+four unrelated sticks.
+
+`geometry/trails.js` chains the edges into walks instead, so the light enters a
+vertex along one edge and leaves along another. That is Hierholzer's algorithm:
+walk unused edges, park a vertex when it runs out, splice the loops together.
+
+The catch is that it only produces a genuine walk when at most two vertices have
+an odd number of edges. Run on a cube — where all eight are odd — it returned a
+sequence of twelve steps that covered only ten edges and repeated two, because
+consecutive entries were not actually joined. So the odd vertices are paired off
+with virtual edges first, making every degree even, and the resulting circuit is
+cut back apart wherever it crosses one. What is left is the fewest real trails
+the graph allows, one per pair of odd vertices:
+
+| | vertices | edges | odd | trails |
+|---|---|---|---|---|
+| Tesseract | 16 | 32 | 0 | **1 closed circuit** |
+| Metatron, full web | 13 | 78 | 0 | **1 closed circuit** |
+| Octahedron | 6 | 12 | 0 | **1 closed circuit** |
+| Icosahedron | 12 | 30 | 12 | 6 |
+| Cube | 8 | 12 | 8 | 4 |
+
+A cube cannot be drawn in one stroke and neither can a dodecahedron — that is a
+fact about the solid, not a shortcoming here. The hypercube can, and does: one
+pulse walks all thirty-two of its edges and comes back to where it started.
+
+Chaining costs the per-edge colouring a path used to carry, so `EnergyLines`
+gained per-segment `tints` and `segFades`. The hypercube keeps its depth
+gradient and Metatron keeps its short skeleton brighter than its long diagonals.
+Trails are worked out once per figure and refilled in place; Metatron's are
+rebuilt only when the set of pairs actually changes, recognised by a running
+hash, because past three dimensions the edge set moves as the figure turns.
+
+### Every layer can hold its own colour
+
+Nine layers, each with a **Colour** dial that turns it around the hue circle on
+top of the global one. Each holds a *pair* of inks rather than one, because most
+layers already carry a gradient inside themselves — depth in the hypercube,
+distance along an arm, one toroid strand against the next — and shifting the
+pair together moves the layer as a whole while keeping its internal shape. At 0
+a layer simply follows the palette, which is where they all start.
 
 ### Switching a layer off has to stop the work
 
@@ -548,6 +605,22 @@ src/
   point. Whatever was given up is named in the readout — `echoes 6→2 to fit` —
   rather than absorbed silently, so the number on the slider and the thing on
   screen never disagree without saying so.
+- **The node glow is a spark, not a smudge.** It summed one wide gaussian and
+  one wide skirt, giving a blob with no centre — grey and out of focus at any
+  size. A point of light read at a distance is mostly a very small, very bright
+  core, and it is the *contrast* between that and a faint, fast-falling haze
+  that makes the eye read a spark at all. Thin diffraction spikes finish it: a
+  bright point through a lens becomes a cross, and that is the single cue that
+  says star rather than dot. The glow also takes the palette now — it was
+  written with `setScalar`, which is why every node was grey whatever the
+  colours were doing.
+- **Sliders on a phone.** A touch starting on a slider was being claimed by the
+  panel's own scrolling, so a drag scrolled the sheet and the value never moved,
+  while a tap still worked — a tap is not a gesture anything competes for.
+  `touch-action: pan-y` gives vertical movement to the scroller and horizontal
+  movement to the slider. The lane and thumb also grow on touch screens, and the
+  panel is no longer selectable, since a drag on a label was selecting text
+  instead of scrolling.
 - **Node density** thins the markers without touching the circles, so how many
   points glow and how much structure is drawn are separate decisions. Selection
   walks the golden ratio rather than taking every Nth node: a fixed stride lands

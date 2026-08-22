@@ -30,5 +30,22 @@ export const SOLIDS = DEFS.map((d) => {
     ]);
   }
   edgeGeo.dispose();
-  return { ...d, geometry, edges };
+
+  // The same edges as vertex indices into a deduplicated point list. Drawing
+  // wants loose segments; anything that *travels* the figure needs to know
+  // which segments meet, so a pulse can turn a corner rather than blink across
+  // one edge and die. EdgesGeometry hands back raw pairs with every shared
+  // corner repeated, so they are welded back together on a rounded key —
+  // exactly coincident by construction, but floating point still needs the
+  // tolerance.
+  const key = (v) => `${v.x.toFixed(5)},${v.y.toFixed(5)},${v.z.toFixed(5)}`;
+  const index = new Map();
+  const points = [];
+  const indexEdges = edges.map(([a, b]) => [a, b].map((v) => {
+    const k = key(v);
+    if (!index.has(k)) { index.set(k, points.length); points.push(v.clone()); }
+    return index.get(k);
+  }));
+
+  return { ...d, geometry, edges, points, indexEdges };
 });

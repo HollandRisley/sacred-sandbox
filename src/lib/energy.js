@@ -139,11 +139,18 @@ export class EnergyLines extends THREE.Group {
         if (path.fades) {
           f *= (path.fades[i] + path.fades[(i + 1) % pts.length]) * 0.5;
         }
+        // Per *segment* rather than per point, for chained trails whose every
+        // edge carries its own weight — Metatron's short skeleton against its
+        // long diagonals, say.
+        if (path.segFades) f *= path.segFades[i];
         if (beam) f *= cometFade(head, (i + 0.5) / last, w, falloff, heads);
 
         A.push(pts[i]);
         B.push(pts[(i + 1) % pts.length]);
-        T.push(path.tint);
+        // A path may colour each segment separately. Chaining edges into one
+        // travelling trail would otherwise flatten a figure's internal gradient
+        // — the hypercube's depth, for one — to a single colour.
+        T.push(path.tints ? path.tints[i] : path.tint);
         F.push(f);
       }
     }

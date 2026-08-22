@@ -8,6 +8,21 @@ import { FORMS } from './geometry/forms.js';
 import { spriteLibrary, addSprite, removeSprite, onSpritesChanged } from './lib/sprites.js';
 import { interpret } from './ai.js';
 
+/**
+ * Every layer's own colour dial. It turns that layer around the hue circle on
+ * top of the global one, so the layers can be told apart at a glance while all
+ * still coming out of the chosen palette. 0 means follow the palette, which is
+ * where they all start.
+ */
+const colourOf = (key) => ({
+  key,
+  label: 'Colour',
+  min: -0.5,
+  max: 0.5,
+  step: 0.01,
+  read: (v) => (Math.abs(v) < 0.005 ? 'palette' : `${v > 0 ? '+' : ''}${Math.round(v * 360)}°`),
+});
+
 const stageAt = (v) => STAGES[Math.min(STAGES.length - 1, Math.max(0, Math.round(v) - 1))];
 const CIRCLE_COUNT = { 2: 19, 3: 37, 4: 61 };
 
@@ -153,6 +168,7 @@ const SPEC = [
       { key: 'nodeSolidSpin', label: 'Node solid spin', min: -1, max: 1, step: 0.01 },
       { key: 'radius', label: 'Scale', min: 0.5, max: 1.6, step: 0.01 },
       { key: 'spin', label: 'Spin', min: -0.6, max: 0.6, step: 0.01 },
+      colourOf('hueRings'),
     ],
   },
   {
@@ -167,6 +183,7 @@ const SPEC = [
       { key: 'joinNodeSize', label: 'Vertex spheres', min: 0, max: 0.2, step: 0.002, read: (v) => (v < 0.001 ? 'off' : v.toFixed(3)) },
       { key: 'joinTumble', label: 'Tumble', min: -0.5, max: 0.5, step: 0.005 },
       { key: 'joinBreath', label: 'Breathe', min: 0, max: 0.6, step: 0.01, read: (v) => (v < 0.005 ? 'fixed' : v.toFixed(2)) },
+      colourOf('hueJoins'),
     ],
   },
   {
@@ -184,6 +201,7 @@ const SPEC = [
       { key: 'torStrands', label: 'Strands', min: 1, max: 4, step: 1, read: (v) => (v === 1 ? 'single' : `${v} interwoven`) },
       { key: 'torCouple', label: 'Bind to merkaba', min: 0, max: 2, step: 0.01, read: (v) => (v < 0.005 ? 'free' : v.toFixed(2)) },
       { key: 'torFlow', label: 'Flow', min: -0.5, max: 0.5, step: 0.005 },
+      colourOf('hueToroid'),
     ],
   },
   {
@@ -194,6 +212,7 @@ const SPEC = [
     controls: [
       { key: 'merkabaSize', label: 'Size', min: 0.3, max: 3, step: 0.01 },
       { key: 'merkabaSpin', label: 'Counter-spin', min: -1.2, max: 1.2, step: 0.01 },
+      colourOf('hueMerkaba'),
     ],
   },
   {
@@ -207,6 +226,7 @@ const SPEC = [
       { key: 'phyllo', label: 'Phyllotaxis', min: 0, max: 400, step: 5, read: (v) => (v === 0 ? 'off' : `${v} seeds`) },
       { key: 'phylloSize', label: 'Seed size', min: 0.008, max: 0.12, step: 0.002 },
       { key: 'goldenRects', label: 'Golden rectangles', type: 'toggle' },
+      colourOf('hueFib'),
     ],
   },
   {
@@ -222,6 +242,7 @@ const SPEC = [
       { key: 'coreRatio', label: 'Scale per level', min: 0.35, max: 0.85, step: 0.01 },
       { key: 'coreZoom', label: 'Emergence', min: 0, max: 0.3, step: 0.005, read: (v) => (v < 0.003 ? 'held' : v.toFixed(3)) },
       { key: 'coreTwist', label: 'Twist per level', min: -2, max: 2, step: 0.01 },
+      colourOf('hueCore'),
     ],
   },
   {
@@ -237,6 +258,7 @@ const SPEC = [
       { key: 'rotXW', label: 'Rotate XW', min: -0.8, max: 0.8, step: 0.01 },
       { key: 'rotYW', label: 'Rotate YW', min: -0.8, max: 0.8, step: 0.01 },
       { key: 'rotZW', label: 'Rotate ZW', min: -0.8, max: 0.8, step: 0.01 },
+      colourOf('huePoly'),
     ],
   },
   {
@@ -256,6 +278,7 @@ const SPEC = [
       { key: 'solidScale', label: 'Size', min: 0.4, max: 3, step: 0.01, when: (s) => !s.solidBind },
       { key: 'solidNodeSize', label: 'Vertex spheres', min: 0, max: 0.2, step: 0.002, read: (v) => (v < 0.001 ? 'off' : v.toFixed(3)) },
       { key: 'solidFaces', label: 'Translucent faces', min: 0, max: 1, step: 0.01 },
+      colourOf('hueSolid'),
     ],
   },
   {
@@ -284,6 +307,7 @@ const SPEC = [
       { key: 'mspiralScale', label: 'Scale', min: 0.2, max: 3, step: 0.01 },
       { key: 'mspiralTurn', label: 'Turn', min: -0.4, max: 0.4, step: 0.005 },
       { key: 'mspiralFade', label: 'Brightness', min: 0, max: 1.5, step: 0.01 },
+      colourOf('hueJoins'),
     ],
   },
   {
@@ -311,6 +335,7 @@ const SPEC = [
       { key: 'emFlow', label: 'Emission', min: -0.6, max: 0.6, step: 0.005 },
       { key: 'emSpin', label: 'Spin', min: -0.8, max: 0.8, step: 0.01 },
       { key: 'emRays', label: 'Rays', min: 0, max: 1.5, step: 0.01, read: (v) => (v < 0.005 ? 'off' : v.toFixed(2)) },
+      colourOf('hueEmitter'),
     ],
   },
   {

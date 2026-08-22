@@ -83,11 +83,11 @@ export const state = {
   mspiralFade: 0.9,
 
   // Pure geometry — radial emission from the centre
-  emArms: 12,
-  emSpread: 0,       // 0 = flat rose window, 1 = Fibonacci sphere
+  emArms: 18,
+  emSpread: 0.75,    // 0 = flat rose window, 1 = Fibonacci sphere
   emReach: 3.2,
   emRays: 1,
-  emBeads: 6,
+  emBeads: 8,
   emBeadSize: 0.06,
   emFlow: 0.18,
   emSpin: 0.08,
@@ -149,6 +149,19 @@ export const state = {
   xrScale: 0.35,
   xrHeight: 1.4,
   xrDistance: 1.6,
+
+  // Per-layer colour. Each turns that layer around the hue circle on top of the
+  // global one, so layers can read as separate things rather than one family.
+  // 0 = follow the palette.
+  hueRings: 0,
+  hueJoins: 0,
+  hueSolid: 0,
+  huePoly: 0,
+  hueCore: 0,
+  hueMerkaba: 0,
+  hueToroid: 0,
+  hueFib: 0,
+  hueEmitter: 0,
 
   // Look
   palette: 0,

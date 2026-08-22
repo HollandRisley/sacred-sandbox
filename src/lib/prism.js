@@ -107,14 +107,33 @@ function softTexture(size = 128) {
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const t = Math.hypot((x - half) / half, (y - half) / half);
+      const dx = (x - half) / half;
+      const dy = (y - half) / half;
+      const t = Math.hypot(dx, dy);
       const i = (y * size + x) * 4;
       if (t > 1) { img.data[i + 3] = 0; continue; }
-      // Two falloffs summed: a tight core for presence, a wide skirt for the
-      // haze. A single curve gives either a hard dot or a formless smudge.
-      const core = Math.exp(-(t * t) * 26);
-      const skirt = (1 - t) ** 2.6;
-      const a = Math.min(core + skirt * 0.55, 1);
+
+      // A STAR, NOT A SMUDGE
+      //
+      // The first version summed one wide gaussian and one wide skirt, which
+      // gave a blob with no centre to it — grey and out of focus at every size.
+      // A point of light read at a distance is mostly a very small, very bright
+      // core; the haze around it should be faint and quick to fall away, and it
+      // is the *contrast* between the two that makes the eye read a spark.
+      const core = Math.exp(-(t * t) * 120);   // the spark itself, tiny and hard
+      const bloom = Math.exp(-(t * t) * 14) * 0.34;
+      const skirt = (1 - t) ** 4 * 0.14;
+
+      // Diffraction spikes. A lens or an eyelash turns a bright point into a
+      // cross, and it is the single cue that says "star" rather than "dot" —
+      // kept thin and faint so a field of hundreds does not turn into a grid.
+      const spikeW = 0.035;
+      const along = (1 - t) ** 3;
+      const spike = along * 0.42 * (
+        Math.max(0, 1 - Math.abs(dx) / spikeW) + Math.max(0, 1 - Math.abs(dy) / spikeW)
+      );
+
+      const a = Math.min(core + bloom + skirt + spike, 1);
       img.data[i] = 255;
       img.data[i + 1] = 255;
       img.data[i + 2] = 255;
@@ -149,6 +168,8 @@ export class PrismHalo extends THREE.InstancedMesh {
     this._parentQ = new THREE.Quaternion();
     this._s = new THREE.Vector3();
     this._c = new THREE.Color();
+    /** Optional colour for every instance; white when unset. */
+    this.tint = null;
     this.setColorAt(0, new THREE.Color(0xffffff));
   }
 
@@ -170,8 +191,13 @@ export class PrismHalo extends THREE.InstancedMesh {
       this._s.setScalar(h.radius * scale);
       this._m.compose(h.pos, this._q, this._s);
       this.setMatrixAt(i, this._m);
-      const f = (h.fade ?? 1) * strength;
-      this._c.setScalar(Math.max(f, 0));
+      const f = Math.max((h.fade ?? 1) * strength, 0);
+      // Grey unless the host offers a colour. The dispersion halo wants white —
+      // its spectrum is in the texture — but the node sparks want the palette,
+      // and setting a scalar was what made every one of them grey.
+      const base = h.tint || this.tint;
+      if (base) this._c.copy(base).multiplyScalar(f);
+      else this._c.setScalar(f);
       this.setColorAt(i, this._c);
     }
     this.count = n;
