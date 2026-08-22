@@ -347,6 +347,18 @@ the graph allows, one per pair of odd vertices:
 | Octahedron | 6 | 12 | 0 | **1 closed circuit** |
 | Icosahedron | 12 | 30 | 12 | 6 |
 | Cube | 8 | 12 | 8 | 4 |
+| Tetrahedron (each merkaba half) | 4 | 6 | 4 | 2 |
+
+Figures that arrive as loose point pairs — the merkaba's tetrahedra, the
+octahedron Metatron derives — are welded back into a graph first: `EdgesGeometry`
+repeats every shared corner once per edge meeting there, so nothing records that
+two segments touch until they are matched up on a rounded key.
+
+One subtlety cost a round. The walk is a *circuit*, so its two ends are the same
+vertex and its last run continues straight into its first. Cutting it as though
+it were a line left those as separate pieces, and a tetrahedron came back as
+three trails of 4, 1 and 1 edges where two of 3 exist. Rejoining the ends gives
+the minimum in every case tested.
 
 A cube cannot be drawn in one stroke and neither can a dodecahedron — that is a
 fact about the solid, not a shortcoming here. The hypercube can, and does: one

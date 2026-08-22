@@ -28,7 +28,7 @@ import { toroidStreamline, lapsFor, toroidPoints } from './geometry/toroid.js';
 import { phyllotaxis, goldenSpiral, goldenRectangles } from './geometry/fibonacci.js';
 import { armDirection } from './geometry/emitter.js';
 import { FORMS } from './geometry/forms.js';
-import { edgeTrails, isClosed } from './geometry/trails.js';
+import { edgeTrails, isClosed, weld } from './geometry/trails.js';
 import { loadSpriteFolder, resolveSprites, spriteTexture } from './lib/sprites.js';
 import { metatronSpiral, HEXAGONS } from './geometry/metatronSpiral.js';
 import { PrismHalo } from './lib/prism.js';
@@ -1233,12 +1233,15 @@ function updateSolid() {
       } else if (kind === 'icosa') {
         // The icosahedron sits on no face. It sits on the twelve edges of the
         // octahedron Metatron gives you, so those are what to draw.
-        for (const [p0, p1] of OCTA_EDGES) {
-          if (a + 2 > anchorPool.length) break;
-          anchorPaths.push({
-            pts: [framePoint(p0, anchorPool[a++]), framePoint(p1, anchorPool[a++])],
-            fade: 0.55,
-          });
+        // Twelve edges meeting four to a corner: one closed circuit, so the
+        // light goes right round the octahedron rather than flickering across
+        // its edges one at a time.
+        for (const trail of octaTrails()) {
+          if (a + trail.ids.length > anchorPool.length) break;
+          for (let i = 0; i < trail.ids.length; i++) {
+            trail.pts[i] = framePoint(OCTA_POINTS[trail.ids[i]], anchorPool[a++]);
+          }
+          anchorPaths.push({ pts: trail.pts, closed: trail.closed, fade: 0.55 });
         }
       }
     }
@@ -1339,6 +1342,21 @@ let polyCount = 0;
  * is the same as the loose edges it replaces.
  */
 const polyTrailCache = new Map();
+
+// Metatron's derived octahedron, welded from loose pairs into a graph once.
+const OCTA_WELD = weld(OCTA_EDGES);
+const OCTA_POINTS = OCTA_WELD.points;
+let _octaTrails = null;
+function octaTrails() {
+  if (!_octaTrails) {
+    _octaTrails = edgeTrails(OCTA_WELD.edges, OCTA_POINTS.length).map((t) => {
+      const closed = isClosed(t);
+      const ids = closed ? t.slice(0, -1) : t;
+      return { ids, closed, pts: new Array(ids.length) };
+    });
+  }
+  return _octaTrails;
+}
 
 /**
  * The same walk for any figure given as indexed edges. Cached on a key of the
@@ -1680,6 +1698,22 @@ function updateMerkaba() {
     }
     geo.dispose();
     edgeGeo.dispose();
+
+    // The same walk the other figures get. A tetrahedron's four corners all
+    // have three edges, so it cannot be drawn in one stroke — it comes out as
+    // two trails — but within each of those a pulse turns the corner instead of
+    // blinking one edge at a time. Built once with the cache: the tetrahedra
+    // never change shape, only the scale of the group holding them.
+    const welded = weld(merkabaCache);
+    merkabaUpPaths.length = 0;
+    merkabaDownPaths.length = 0;
+    for (const t of edgeTrails(welded.edges, welded.points.length)) {
+      const closed = isClosed(t);
+      const ids = closed ? t.slice(0, -1) : t;
+      const pts = ids.map((i) => welded.points[i]);
+      merkabaUpPaths.push({ pts, closed, fade: 1 });
+      merkabaDownPaths.push({ pts, closed, fade: 1 });
+    }
   }
 
   const s = state.merkabaSize;
@@ -1688,12 +1722,6 @@ function updateMerkaba() {
   merkabaUp.setRadius(state.lineWidth / s);
   merkabaDown.setRadius(state.lineWidth / s);
 
-  merkabaUpPaths.length = 0;
-  merkabaDownPaths.length = 0;
-  for (const [a, b] of merkabaCache) {
-    merkabaUpPaths.push({ pts: [a, b], fade: 1 });
-    merkabaDownPaths.push({ pts: [a, b], fade: 1 });
-  }
   merkabaUp.setPaths(merkabaUpPaths);
   merkabaDown.setPaths(merkabaDownPaths);
 }

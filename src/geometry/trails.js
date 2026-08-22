@@ -85,16 +85,28 @@ export function edgeTrails(edges, vertexCount) {
   for (let v = 0; v < vertexCount; v++) {
     if (!hasEdgeLeft(v)) continue;
     const { v: vs, e: es } = walk(v);
+    const runs = [];
     let run = [vs[0]];
     for (let i = 1; i < vs.length; i++) {
       if (es[i] >= edges.length) {     // stepped over a virtual edge: cut here
-        emit(run);
+        runs.push(run);
         run = [vs[i]];
       } else {
         run.push(vs[i]);
       }
     }
-    emit(run);
+    runs.push(run);
+
+    // The walk is a *circuit*, so its two ends are the same vertex and the last
+    // run continues straight into the first. Cutting it as though it were a
+    // line leaves those as two separate pieces — a tetrahedron came back as
+    // three trails of 4, 1 and 1 edges where two of 3 exist. Rejoining them
+    // gives the minimum the graph allows.
+    if (runs.length > 1 && vs[0] === vs[vs.length - 1]) {
+      const last = runs.pop();
+      runs[0] = last.concat(runs[0].slice(1));
+    }
+    for (const r of runs) emit(r);
   }
   return trails;
 }
@@ -102,4 +114,39 @@ export function edgeTrails(edges, vertexCount) {
 /** True when a trail returns to where it started, so a pulse can loop forever. */
 export function isClosed(trail) {
   return trail.length > 2 && trail[0] === trail[trail.length - 1];
+}
+
+/**
+ * Loose segments back into a graph.
+ *
+ * `EdgesGeometry` and the like hand back independent pairs of points, with every
+ * shared corner repeated once per edge that meets there. Nothing can be walked
+ * in that form, because nothing records that two segments touch — so the corners
+ * are welded on a rounded key. They are exactly coincident by construction;
+ * the tolerance is only for floating point.
+ *
+ * The points come back by reference, not copied, so a caller that moves them
+ * keeps its trails valid.
+ */
+export function weld(pairs, precision = 5) {
+  // Points arrive either as Vector3s or as plain [x, y, z] triples depending on
+  // which part of the geometry produced them, and both are welded the same way.
+  const key = (v) => {
+    const x = v.x ?? v[0];
+    const y = v.y ?? v[1];
+    const z = v.z ?? v[2];
+    return `${x.toFixed(precision)},${y.toFixed(precision)},${z.toFixed(precision)}`;
+  };
+  const index = new Map();
+  const points = [];
+  const edges = [];
+  for (const [a, b] of pairs) {
+    const ids = [a, b].map((v) => {
+      const k = key(v);
+      if (!index.has(k)) { index.set(k, points.length); points.push(v); }
+      return index.get(k);
+    });
+    if (ids[0] !== ids[1]) edges.push(ids);
+  }
+  return { points, edges };
 }
