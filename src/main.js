@@ -89,10 +89,45 @@ let bloomNode = null;
  * boot the WebGL backend, which is the proven XR path. Everything else gets
  * WebGPU. `?webgl` and `?webgpu` override it either way.
  */
+/**
+ * WebKit renders this scene to a canvas it then never composites.
+ *
+ * Measured on Safari 26.5, five fresh launches: the loop runs (800+ frames),
+ * the surface is the right size, the camera is right, the scene holds four
+ * visible objects carrying 10,746 instances, no error is logged anywhere — and
+ * the canvas stays black. Nothing recovers it except a genuine change to the
+ * window's size, which is why the piece appeared the moment the panel was
+ * opened on a phone: that calls `resize`. Calling `resize` again with the same
+ * numbers does nothing, because nothing has changed.
+ *
+ * It is a compositing fault rather than a rendering one. Putting any extra
+ * layer over the canvas — a debug overlay was how this was found — makes every
+ * frame appear correctly, three runs out of three. Sizing the surface before
+ * `init`, promoting the canvas with `translateZ(0)`, and dropping the bloom
+ * pass each changed nothing: 0 for 11 between them.
+ *
+ * The WebGL 2 backend is perfect on the same browser, three runs out of three,
+ * pixel-identical each time. So WebKit gets WebGL. It costs some performance on
+ * a platform that was showing nothing at all, and the piece is not heavy enough
+ * for that to be the difference between running and not.
+ *
+ * `navigator.vendor` is the right test rather than sniffing for "Safari" in the
+ * user agent: it is Apple for every browser on iOS, all of which are WebKit
+ * underneath and all of which therefore have this bug, and it is Google or
+ * empty for Chrome and Firefox on the Mac, which do not.
+ *
+ * `?webgpu` forces it back on, for checking whether a later Safari has fixed
+ * this. `?webgl` forces the other way.
+ */
+function isWebKit() {
+  return typeof navigator !== 'undefined' && navigator.vendor === 'Apple Computer, Inc.';
+}
+
 async function pickBackend() {
   const q = new URLSearchParams(location.search);
   if (q.has('webgl')) return true;
   if (q.has('webgpu')) return false;
+  if (isWebKit()) return true;
   try {
     return (await navigator.xr?.isSessionSupported?.('immersive-vr')) === true;
   } catch {
@@ -100,19 +135,42 @@ async function pickBackend() {
   }
 }
 
+/**
+ * SIZE THE SURFACE BEFORE THE BACKEND CONFIGURES IT
+ *
+ * A canvas element starts at 300×150 whatever the stylesheet says — the CSS
+ * governs how big it is *drawn*, not how big its buffer is. `init()` is where
+ * the backend configures its swap chain against that buffer, so calling it
+ * first and sizing afterwards asks WebGPU to configure a 300×150 surface for a
+ * full-screen canvas.
+ *
+ * Chrome re-reads the canvas on each acquire and quietly corrects itself.
+ * Safari configures once and keeps it, so the piece rendered into a surface
+ * that was never presented and the canvas came up black — on macOS Safari and
+ * on every iPhone, while Chrome and the WebGL fallback were both fine. Only a
+ * genuine size *change* reconfigured it, which is why the artwork appeared the
+ * moment the panel was opened: that calls `resize`. Re-calling `resize` with
+ * the same numbers did nothing, because nothing had changed.
+ *
+ * So the size is set on the renderer before `init` is awaited. Nothing here is
+ * Safari-specific; this is simply the correct order.
+ */
+async function sizedRenderer(forceWebGL) {
+  const r = new THREE.WebGPURenderer({ canvas, antialias: true, forceWebGL });
+  r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  r.setSize(window.innerWidth, window.innerHeight, false);
+  await r.init();
+  return r;
+}
+
 async function createRenderer() {
-  const make = (forceWebGL) => new THREE.WebGPURenderer({ canvas, antialias: true, forceWebGL });
   const preferWebGL = await pickBackend();
   try {
-    const r = make(preferWebGL);
-    await r.init();
-    return r;
+    return await sizedRenderer(preferWebGL);
   } catch (err) {
     if (preferWebGL) throw err;
     console.warn('WebGPU init failed, falling back to WebGL 2', err);
-    const r = make(true);
-    await r.init();
-    return r;
+    return sizedRenderer(true);
   }
 }
 
@@ -2111,6 +2169,24 @@ async function boot() {
   document.getElementById('backend').textContent = bits.join(' + ');
 
   window.addEventListener('resize', resize);
+
+  /**
+   * Keeping the surface in step with the viewport after startup.
+   *
+   * Two listeners beyond the window's own, covering what it does not report:
+   *
+   * 1. A ResizeObserver on the canvas, which hears layout changes the window
+   *    event does not — including a container change with no window resize.
+   * 2. `visualViewport`, for iOS. When the URL bar collapses the visual
+   *    viewport changes while the layout viewport does not, so neither the
+   *    window event nor the observer fires, yet `innerHeight` — which this
+   *    reads — has moved.
+   */
+  const surface = new ResizeObserver(() => resize());
+  surface.observe(renderer.domElement);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', resize);
+  }
   renderer.setAnimationLoop(() => {
     controls.autoRotate = state.autoRotate;
     tick();

@@ -39,6 +39,44 @@ WebGPU and falls back to WebGL 2 by itself — the panel reports which you got. 
 of 2026 the fallback rarely fires: iOS 26 / iPadOS 26 Safari ship WebGPU on by
 default, and Firefox 147 completed cross-browser support in January 2026.
 
+### Except on WebKit, where WebGPU draws to a canvas nobody composites
+
+Safari ships WebGPU and it does not work here. On Safari 26.5, five fresh
+launches out of five: the loop runs — 800+ frames — the surface is the right
+size, the camera is right, the scene holds four visible objects carrying 10,746
+instances, nothing is logged anywhere, and the canvas stays black. It is a
+compositing fault, not a rendering one. The frames are drawn and never shown.
+
+Nothing recovers it except a genuine change to the window's size. That is why
+the piece appeared on a phone only once the panel had been opened: opening it
+calls `resize`. Calling `resize` again with the same numbers does nothing,
+because nothing has changed — which is what made this look like a startup
+problem for so long.
+
+What was measured, all on the same browser and the same scene:
+
+| | fresh launches | result |
+|---|---|---|
+| WebGPU | 5 | black, every time |
+| WebGPU, surface sized before `init` | 5 | black |
+| WebGPU, no bloom pass | 1 | black |
+| WebGPU, canvas promoted with `translateZ(0)` | 2 | black |
+| WebGPU **with any extra layer over the canvas** | 3 | correct |
+| **WebGL 2** | 3 | correct, pixel-identical |
+
+The overlay row is the tell, and it is how this was found: a debug panel added
+to read the diagnostics out was itself making the bug disappear. A second
+compositing layer over the canvas is enough to get every frame presented.
+
+So WebKit gets WebGL. `navigator.vendor === 'Apple Computer, Inc.'` is the test
+rather than sniffing the user agent for "Safari": it is Apple for *every*
+browser on iOS, all of which are WebKit underneath and all of which therefore
+have this, and it is Google or empty for Chrome and Firefox on the Mac, which do
+not. Chrome keeps WebGPU. `?webgpu` forces it back on for checking whether a
+later Safari has fixed this; `?webgl` forces the other way.
+
+It costs some performance on a platform that was showing nothing at all.
+
 Bundle is ~915 kB raw, ~255 kB gzipped — the full node-based build. That is the
 number to attack if this ever needs a load-time budget.
 
