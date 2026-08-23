@@ -6,6 +6,10 @@ import { PALETTES } from './lib/palettes.js';
 import { PULSE_STYLES } from './lib/energy.js';
 import { FORMS } from './geometry/forms.js';
 import { spriteLibrary, addSprite, removeSprite, onSpritesChanged } from './lib/sprites.js';
+import {
+  extLibrary, addExtension, removeExtension, activate, deactivate,
+  isActive, activeExtension, setParam, onExtensionsChanged, EXAMPLE,
+} from './lib/extensions.js';
 import { interpret } from './ai.js';
 
 /**
@@ -22,6 +26,119 @@ const colourOf = (key) => ({
   step: 0.01,
   read: (v) => (Math.abs(v) < 0.005 ? 'palette' : `${v > 0 ? '+' : ''}${Math.round(v * 360)}°`),
 });
+
+/**
+ * THE EXTENSION PANEL
+ *
+ * A box to paste maths into, a shelf of what has been kept, and — once one is
+ * running — sliders for whatever parameters it declared. Those sliders are not
+ * in the SPEC like everything else, because they are not known until the
+ * extension says what they are.
+ */
+function buildExtensionPanel(row, onChange, bindings) {
+  row.classList.add('extpanel');
+  row.innerHTML = `<span class="lab">Library</span>
+    <div class="extlist"></div>
+    <details class="extadd">
+      <summary>write one</summary>
+      <textarea class="extcode" spellcheck="false" rows="10"></textarea>
+      <div class="extacts">
+        <input class="extname" type="text" placeholder="name it" autocomplete="off">
+        <button type="button" class="extload">load</button>
+        <button type="button" class="extexample">example</button>
+      </div>
+    </details>
+    <div class="extparams"></div>
+    <p class="note extnote"></p>`;
+
+  const listEl = row.querySelector('.extlist');
+  const paramsEl = row.querySelector('.extparams');
+  const noteEl = row.querySelector('.extnote');
+  const codeEl = row.querySelector('.extcode');
+  const nameEl = row.querySelector('.extname');
+
+  row.querySelector('.extexample').addEventListener('click', () => {
+    codeEl.value = EXAMPLE;
+    nameEl.value = 'Rose';
+  });
+
+  row.querySelector('.extload').addEventListener('click', async () => {
+    const code = codeEl.value.trim();
+    if (!code) { noteEl.textContent = 'nothing to load'; return; }
+    noteEl.textContent = 'checking…';
+    // Loaded in a throwaway sandbox and asked to build once before it is kept:
+    // something that cannot draw is refused now rather than saved and found
+    // wanting later.
+    const { item, error, points, dots } = await addExtension(nameEl.value, code);
+    if (error) { noteEl.textContent = error; return; }
+    noteEl.textContent = `kept "${item.name}" — ${points} points, ${dots} dots`;
+    codeEl.value = '';
+    nameEl.value = '';
+    row.querySelector('.extadd').open = false;
+    noteEl.textContent = await activate(item.id);
+    onChange('extensions');
+  });
+
+  /** Sliders for whatever the running extension declared. */
+  const paintParams = () => {
+    const { meta, params, error } = activeExtension();
+    paramsEl.textContent = '';
+    if (error) { noteEl.textContent = error; return; }
+    if (!meta) return;
+    for (const p of meta.params || []) {
+      if (!p || typeof p.key !== 'string') continue;
+      const el = document.createElement('label');
+      el.className = 'row';
+      const min = Number(p.min ?? 0);
+      const max = Number(p.max ?? 1);
+      const step = Number(p.step ?? 0.01);
+      const value = params[p.key];
+      el.innerHTML = `<span class="lab">${String(p.label || p.key).slice(0, 32)}<em class="val">${value}</em></span>
+        <input type="range" min="${min}" max="${max}" step="${step}" value="${value}" autocomplete="off">`;
+      const input = el.querySelector('input');
+      const val = el.querySelector('.val');
+      input.addEventListener('input', () => {
+        const v = parseFloat(input.value);
+        setParam(p.key, v);
+        val.textContent = v;
+      });
+      paramsEl.appendChild(el);
+    }
+  };
+
+  const paint = () => {
+    listEl.textContent = '';
+    for (const item of extLibrary) {
+      const b = document.createElement('div');
+      b.className = 'extitem' + (isActive(item.id) ? ' on' : '');
+      b.innerHTML = `<button type="button" class="extrun">${item.name}</button>
+        <button type="button" class="extdel" title="Remove">×</button>`;
+      b.querySelector('.extrun').addEventListener('click', async () => {
+        if (isActive(item.id)) { deactivate(); noteEl.textContent = 'stopped'; }
+        else noteEl.textContent = await activate(item.id);
+        onChange('extensions');
+        paint();
+        paintParams();
+      });
+      b.querySelector('.extdel').addEventListener('click', () => {
+        removeExtension(item.id);
+        noteEl.textContent = `removed ${item.name}`;
+        paint();
+        paintParams();
+      });
+      listEl.appendChild(b);
+    }
+    // Always set it, never only when empty: the first paint runs before the
+    // library has been read off disk, and a note left standing from then said
+    // "nothing kept yet" underneath a full shelf.
+    if (!extLibrary.length) noteEl.textContent = 'nothing kept yet — “write one” has a worked example';
+    else if (!activeExtension().error) noteEl.textContent = `${extLibrary.length} kept · tap one to run it`;
+    paintParams();
+  };
+
+  onExtensionsChanged(paint);
+  bindings.push(paint);
+}
 
 const stageAt = (v) => STAGES[Math.min(STAGES.length - 1, Math.max(0, Math.round(v) - 1))];
 const CIRCLE_COUNT = { 2: 19, 3: 37, 4: 61 };
@@ -40,6 +157,7 @@ const VISIBILITY = [
   ['showPulses', 'Particles'],
   ['showSpirals', 'Spirals'],
   ['showEmitter', 'Pure geometry'],
+  ['showExt', 'Extensions'],
 ];
 
 /**
@@ -339,6 +457,19 @@ const SPEC = [
     ],
   },
   {
+    title: 'Extensions',
+    owner: 'showExt',
+    when: (s) => s.showExt,
+    note: 'Maths written by somebody else, run where it can reach neither this page nor the network. Paste some in, or open one you have kept.',
+    controls: [
+      { key: 'extScale', label: 'Scale', min: 0.1, max: 4, step: 0.01 },
+      { key: 'extSpin', label: 'Spin', min: -0.8, max: 0.8, step: 0.01 },
+      { key: 'extDotSize', label: 'Dots', min: 0, max: 0.4, step: 0.005, read: (v) => (v < 0.001 ? 'off' : v.toFixed(3)) },
+      colourOf('hueExt'),
+      { key: '__extensions', type: 'extensions' },
+    ],
+  },
+  {
     title: 'Energy',
     controls: [
       { key: 'vertexPulse', label: 'Vertex pulse', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'steady' : `${Math.round(v * 100)}%`) },
@@ -387,7 +518,7 @@ export function buildUI(onChange, onLayout, store) {
     ['showMerkaba', 'Merkaba', 'Two tetrahedra, one inverted, turning against each other.'],
     ['showPoly', 'Fourth dimension', 'A regular 4-polytope turning in planes that have no axis in our space, projected down into it.'],
     ['showFib', 'Fibonacci', 'φ, the golden angle, and the three rectangles whose corners are an icosahedron.'],
-    ['showRainbow', 'Rainbows', 'Spectral bows standing on the linework, outermost red to innermost violet.'],
+    ['showExt', 'Extensions', 'Maths written by somebody else, running where it can reach neither this page nor the network.'],
   ];
 
   const refresh = () => {
@@ -538,7 +669,9 @@ export function buildUI(onChange, onLayout, store) {
       // with its group — a live slider that cannot do anything is a lie.
       if (c.when) bindings.push(() => row.classList.toggle('hidden', !c.when(state)));
 
-      if (c.type === 'sprites') {
+      if (c.type === 'extensions') {
+        buildExtensionPanel(row, onChange, bindings);
+      } else if (c.type === 'sprites') {
         buildSpritePicker(row, c, onChange, bindings);
       } else if (c.type === 'toggle') {
         // autocomplete=off stops the browser restoring stale control values on

@@ -563,6 +563,44 @@ console, and is written to be honest about it: an earlier version called
 `XMLHttpRequest` and `WebSocket` "allowed" because their constructors had not
 thrown, when the policy was in fact refusing both a moment later.
 
+### The contract
+
+One function. Numbers in, numbers out. No imports, no `async`, no DOM, and
+nothing about three.js — the host owns every object, pool and material, which is
+how `src/geometry/*` already works, so this formalises the existing convention
+rather than inventing one.
+
+```js
+{
+  meta: {
+    name: 'Rose',
+    params: [{ key: 'petals', label: 'Petals', min: 2, max: 12, step: 1, value: 5 }],
+  },
+  build(p, t) {                     // p = your parameters, t = seconds
+    const points = [];
+    for (let i = 0; i <= 240; i++) { /* … */ points.push(x, y, z); }
+    return { paths: [{ points, closed: true }], dots: [] };
+  },
+}
+```
+
+`meta.params` generates the sliders, so an extension describes its own controls
+and the panel builds them. Flat arrays of three numbers per point are the whole
+geometry vocabulary; the runtime copies them into pooled vectors and hands them
+to the same linework everything else uses, so an extension gets the glow, the
+travelling pulses, the beam and its own colour dial for nothing.
+
+**Building is asynchronous, drawing is not.** The code runs behind an iframe and
+a worker and answers by message, while the render loop must never wait for
+anyone. So each frame draws the most recent result it has and requests a fresh
+one only once the last has come back. An extension that takes 80 ms to think
+updates less often than the frame rate; it never holds a frame up and never
+queues work faster than it can be done.
+
+One thing this does not do yet: an extension's parameters live with the
+extension rather than in `state`, so a shared link carries the rest of the piece
+but not them.
+
 ## The gallery
 
 **Keep this** stores every parameter, the camera position and target, and a

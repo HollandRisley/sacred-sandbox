@@ -30,6 +30,7 @@ import { armDirection } from './geometry/emitter.js';
 import { FORMS } from './geometry/forms.js';
 import { edgeTrails, isClosed, weld } from './geometry/trails.js';
 import { loadSpriteFolder, resolveSprites, spriteTexture } from './lib/sprites.js';
+import { extensionGeometry, loadExtensionLibrary, activeExtension } from './lib/extensions.js';
 import { metatronSpiral, HEXAGONS } from './geometry/metatronSpiral.js';
 import { PrismHalo } from './lib/prism.js';
 import {
@@ -403,6 +404,15 @@ solidGroup.add(solidPrism);
 polyGroup.add(polyPrism);
 rig.add(nodePrism);
 
+// Extensions — contributed maths, drawn like any other layer.
+const EXT_SEGMENTS = 6000;
+const EXT_DOTS = 1200;
+const extGroup = new THREE.Group();
+const extLines = new EnergyLines(EXT_SEGMENTS, EXT_SEGMENTS, { coreOpacity: 0.85, haloOpacity: 0.1 });
+const extDots = new SphereField(EXT_DOTS, { material: pearlMaterial(0.8), segments: [14, 10] });
+extGroup.add(extLines, extDots);
+rig.add(extGroup);
+
 // Pure geometry — radial emission from the centre.
 const emitterGroup = new THREE.Group();
 const emRayLines = new EnergyLines(MAX_ARMS, MAX_ARMS * PULSE_CAP, { coreOpacity: 0.7, haloOpacity: 0.1 });
@@ -516,7 +526,7 @@ const palette = { ring: new THREE.Color(), join: new THREE.Color(), solid: new T
  * shape and moves the layer as a whole.
  */
 const layer = {};
-for (const k of ['rings', 'joins', 'solid', 'poly', 'core', 'merkaba', 'toroid', 'fib', 'emitter']) {
+for (const k of ['rings', 'joins', 'solid', 'poly', 'core', 'merkaba', 'toroid', 'fib', 'emitter', 'ext']) {
   layer[k] = new THREE.Color();
   layer[`${k}Alt`] = new THREE.Color();
 }
@@ -576,6 +586,7 @@ function applyLook() {
   setLayer('toroid', 1, 0, state.hueToroid);
   setLayer('fib', 2, 0, state.hueFib);
   setLayer('emitter', 2, 0, state.hueEmitter);
+  setLayer('ext', 1, 3, state.hueExt);
 
   rings.baseColor.copy(layer.rings);
   boundRings.baseColor.copy(layer.rings);
@@ -611,6 +622,8 @@ function applyLook() {
   merkabaDown.applyTint(layer.merkabaAlt);
   spiralLines.applyTint(layer.fib);
   emRayLines.applyTint(layer.emitter);
+  extLines.applyTint(layer.ext);
+  extDots.baseColor.copy(_pearlTint2.copy(layer.extAlt).lerp(WHITE, wash));
 
   const g = state.glow;
   rings.material.opacity = g;
@@ -1913,6 +1926,72 @@ function updateMetatronSpirals() {
   mspiralLines.setPaths(mspiralPaths);
 }
 
+// ---------------------------------------------------------------- extensions
+
+const extPool = Array.from({ length: EXT_SEGMENTS + 8 }, () => new THREE.Vector3());
+const extPaths = [];
+const extDotList = [];
+let extClamped = 0;
+
+/**
+ * Draw whatever the active extension last produced.
+ *
+ * The geometry arrives as flat arrays of numbers — the contract is deliberately
+ * that narrow, so an extension needs to know nothing about three.js — and is
+ * copied into the pooled vectors the linework wants. Nothing is allocated here;
+ * the pool is the ceiling, and going over it is reported rather than dropped in
+ * silence, the same as the lattice does.
+ */
+function updateExtensions() {
+  extGroup.visible = state.showExt;
+  if (!state.showExt) {
+    extLines.setPaths([]);
+    extDots.set([]);
+    extClamped = 0;
+    return;
+  }
+
+  const out = extensionGeometry(clock);
+  if (!out) { extLines.setPaths([]); extDots.set([]); return; }
+
+  extPaths.length = 0;
+  extDotList.length = 0;
+  extClamped = 0;
+  let n = 0;
+
+  for (const path of out.paths) {
+    const count = path.points.length / 3;
+    if (count < 2) continue;
+    if (n + count > extPool.length) { extClamped += count; continue; }
+    const pts = [];
+    for (let i = 0; i < count; i++) {
+      const v = extPool[n++];
+      v.set(path.points[i * 3], path.points[i * 3 + 1], path.points[i * 3 + 2])
+        .multiplyScalar(state.extScale);
+      pts.push(v);
+    }
+    extPaths.push({ pts, closed: path.closed, fade: 1 });
+  }
+
+  const size = state.extDotSize;
+  if (size > 0.001) {
+    for (const d of out.dots) {
+      if (extDotList.length >= EXT_DOTS) { extClamped++; break; }
+      extDotList.push({
+        pos: _extDot.set(d.x, d.y, d.z).multiplyScalar(state.extScale).clone(),
+        radius: size * d.r,
+        fade: 1,
+      });
+    }
+  }
+
+  extGroup.rotation.z = clock * state.extSpin;
+  extLines.setPaths(extPaths);
+  extDots.set(extDotList);
+}
+
+const _extDot = new THREE.Vector3();
+
 // ---------------------------------------------------------------- emitter
 
 const armPool = Array.from({ length: MAX_ARMS }, () => new THREE.Vector3());
@@ -2177,6 +2256,7 @@ function tick() {
   updateToroid();
   updateFibonacci();
   updateEmitter();
+  updateExtensions();
   updateTethers();
   paintLattice();
   updateMetatronSpirals();
@@ -2194,6 +2274,7 @@ function tick() {
     strandLines[i].updatePulses(clock, ps * 0.7 * (i % 2 === 0 ? 1 : -1), p, style, psz);
   }
   emRayLines.updatePulses(clock, ps * 1.6, p, style, psz);
+  extLines.updatePulses(clock, ps, p, style, psz);
   mspiralLines.updatePulses(clock, ps * 0.6, p, style, psz);
   merkabaUp.updatePulses(clock, ps * 1.1, p, style, psz);
   merkabaDown.updatePulses(clock, -ps * 1.1, p, style, psz);
@@ -2269,7 +2350,7 @@ function tick() {
 /** Every line layer, for the passes that touch all of them. */
 const ALL_LINES = [joinLines, solidLines, rectLines, polyLines, tetherLines,
   coreLines, merkabaUp, merkabaDown, spiralLines, emRayLines, mspiralLines,
-  anchorLines, spokeLines, ...strandLines];
+  anchorLines, spokeLines, extLines, ...strandLines];
 
 const vertexHosts = [];
 const EMPTY = [];
@@ -2359,7 +2440,7 @@ async function boot() {
   const BEAM_SPEEDS = [
     [joinLines, 1], [polyLines, 1.4], [solidLines, 1.2], [tetherLines, 2],
     [coreLines, 0.5], [merkabaUp, 1.1], [merkabaDown, -1.1], [spiralLines, 0.8],
-    [emRayLines, 1.6], [mspiralLines, 0.6], [rectLines, 0.6],
+    [emRayLines, 1.6], [mspiralLines, 0.6], [rectLines, 0.6], [extLines, 1],
     [anchorLines, 0.9], [spokeLines, 1.3],
   ];
   for (const [layer, mult] of BEAM_SPEEDS) layer.beamSpeed = mult;
@@ -2409,6 +2490,7 @@ async function boot() {
   // must not hold the piece back from drawing, and the emitter reads the
   // library live, so the images simply appear the moment they arrive.
   loadSpriteFolder().then(() => ui.refresh());
+  loadExtensionLibrary();
 
   // A link beats a save, and a save beats the defaults. Someone who followed a
   // link came to see that particular position, so it should not be quietly

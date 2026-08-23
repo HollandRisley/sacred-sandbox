@@ -152,6 +152,14 @@ export const state = {
   xrHeight: 1.4,
   xrDistance: 1.6,
 
+  // Extensions — contributed maths, drawn like any other layer. The
+  // extension's own parameters live with the extension, not here, because they
+  // differ from one to the next.
+  showExt: false,
+  extScale: 1,
+  extSpin: 0.05,
+  extDotSize: 0.06,
+
   // Per-layer colour. Each turns that layer around the hue circle on top of the
   // global one, so layers can read as separate things rather than one family.
   // 0 = follow the palette.
@@ -164,6 +172,7 @@ export const state = {
   hueToroid: 0.21,
   hueFib: 0,
   hueEmitter: 0,
+  hueExt: 0,
 
   // Look
   palette: 0,
