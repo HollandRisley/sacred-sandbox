@@ -720,11 +720,46 @@ body — behind a server route, because a browser API key is public.
 
 ## Next
 
-- **Presets as URL state** — makes a configuration a shareable link, and makes
-  the piece exhibitable.
+Shareable links and WebXR are both done and have moved into the sections above.
+What is left, roughly in the order it is likely to happen:
+
+**Metatron's Cube, organically**
+
+- **Vertex spheres as stars.** The lattice nodes already have three surfaces —
+  glow, pearl and matter — where *glow* is a camera-facing billboard carrying a
+  hard bright core, a fast-falling haze and thin diffraction spikes. Metatron's
+  vertices are still only spheres. They want the same choice, which is mostly a
+  matter of giving `joinVerts` a `PrismHalo` alongside its `SphereField` and a
+  Vertex surface control to pick between them, exactly as **Node surface** does.
+- **Curved edges.** A curvature slider that bows the lines instead of running
+  them straight, for something closer to a jellyfish than a diagram. The
+  linework already takes polylines rather than segments, so an edge becomes an
+  arc of a dozen points and nothing downstream changes — the trails are walks
+  over *vertices*, so they keep turning corners regardless. The thing to get
+  right is which way each edge bows: a random normal per edge will look like
+  noise, so the bow should be consistent in Metatron's own frame — away from the
+  centroid, say — and given a slow phase so the whole web breathes rather than
+  sitting bent.
+
+**From the plan** (`gallery, extensions, and a landscape UI`)
+
+- **A local gallery** — many named setups with preview thumbnails, replacing the
+  single save slot.
+- **A Cloudflare Worker** — shared setups by short link, and a curated public
+  gallery. Uploaded images stay local and never travel.
+- **User extensions** — a data-only contract (numbers in, points and edges out)
+  run in a null-origin iframe with `connect-src 'none'`, so contributed maths
+  can reach neither the page nor the network. The sandbox is the part to build
+  first, because it is the part that can be wrong.
+- **A local AI helper** — describe the maths you want and have it written for
+  you, against a self-hosted model or your own key, on your own machine. Not a
+  hosted endpoint.
+- **`CLAUDE.md`** — the invariants that are easy to violate, for anyone
+  extending this.
+
+**Still open**
+
 - **Audio** — the lattice ratios are intervals; the pulses already carry phase.
-- **WebXR** — same renderer. A Hopf core you can stand inside is a different
-  experience from one on a screen.
 
 ## Licence
 
