@@ -625,7 +625,6 @@ function applyLook() {
   // The glow field alone takes the spark colour; the pearl and matter spheres
   // keep their own washed tint so Sheen still means something for them.
   nodeGlow.tint = _sparkTint;
-  joinGlow.material.opacity = state.glow;
   joinGlow.tint = _joinSparkTint.copy(layer.joins).lerp(WHITE, 0.5);
   starField.material.opacity = state.glow;
   starField.tint = _starTint.copy(layer.stars).lerp(WHITE, 0.45);
@@ -658,8 +657,13 @@ function applyLook() {
     lines.setOpacity(g * 0.95, state.halo, g);
   }
   // Metatron's 78 lines all converge on one point; at full brightness the
-  // centre of the figure saturates to white and the structure disappears.
-  joinLines.setOpacity(g * 0.6, state.halo * 0.7, g * 0.8);
+  // centre of the figure saturates to white and the structure disappears. Its
+  // own dial rides on top of that, and reaches the vertices too — a web that
+  // dims while its corners stay lit reads as broken rather than as faint.
+  const jn = state.joinFade;
+  joinLines.setOpacity(g * 0.6 * jn, state.halo * 0.7 * jn, g * 0.8 * jn);
+  joinVerts.material.opacity = 0.8 * jn;
+  joinGlow.material.opacity = state.glow * jn;
   // The merkaba is two solids occupying the same space, so it is the layer most
   // often wanted as a ghost around everything else rather than as the thing in
   // front. Its own dial rides on top of the global glow.
@@ -2608,7 +2612,7 @@ const EMPTY = [];
 /** Coronas on the vertex spheres, mirroring whatever each field last drew. */
 function updateVertexPrisms(strength, scale) {
   const pairs = [
-    [joinPrism, joinNodeList],
+    [joinPrism, joinNodeList, state.joinFade],
     [solidPrism, solidVertList],
     [polyPrism, vertList],
     // Glow nodes are already billboards carrying their own halo; a prism corona
@@ -2616,12 +2620,13 @@ function updateVertexPrisms(strength, scale) {
     // the list as well. Only the mesh surfaces need it.
     [nodePrism, Math.round(state.nodeLook) === 0 ? EMPTY : nodeList],
   ];
-  for (const [halo, list] of pairs) {
-    if (strength <= 0.004 || !list.length || !halo.parent.visible) { halo.count = 0; continue; }
+  for (const [halo, list, dim = 1] of pairs) {
+    const power = strength * dim;
+    if (power <= 0.004 || !list.length || !halo.parent.visible) { halo.count = 0; continue; }
     halo.faceCamera(camera);
     vertexHosts.length = 0;
     for (const h of list) vertexHosts.push(h);
-    halo.set(vertexHosts, scale * 2.2, strength);
+    halo.set(vertexHosts, scale * 2.2, power);
   }
 }
 

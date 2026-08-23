@@ -359,6 +359,7 @@ const SPEC = [
       { key: 'joinDim', label: 'Dimension', min: 2, max: 4, step: 0.01, read: (v) => (v < 2.02 ? '2D — Fruit of Life' : v < 2.98 ? `${v.toFixed(2)}D — lifting` : v < 3.02 ? '3D — cuboctahedron' : v > 3.98 ? '4D — 24-cell' : `${v.toFixed(2)}D — opening`) },
       { key: 'joinReach', label: 'Edge reach', min: 0, max: 1, step: 0.01, read: (v) => (v > 0.99 ? 'every pair' : v < 0.05 ? 'shortest only' : v.toFixed(2)) },
       { key: 'joinSize', label: 'Size', min: 0.2, max: 2.5, step: 0.01 },
+      { key: 'joinFade', label: 'Opacity', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'invisible' : v > 0.995 ? 'full' : `${Math.round(v * 100)}%`) },
       { key: 'joinNodeSize', label: 'Vertices', min: 0, max: 0.2, step: 0.002, read: (v) => (v < 0.001 ? 'off' : v.toFixed(3)) },
       { key: 'joinLook', label: 'Vertex surface', min: 0, max: 1, step: 1, when: (s) => s.joinNodeSize > 0.001, read: (v) => ['Stars — edgeless light', 'Pearl — translucent bubble'][v] },
       { key: 'joinGlowSpread', label: 'Star spread', min: 0.3, max: 3, step: 0.01, when: (s) => s.joinNodeSize > 0.001 && Math.round(s.joinLook) === 0 },

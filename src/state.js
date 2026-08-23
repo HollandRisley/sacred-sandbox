@@ -25,6 +25,7 @@ export const state = {
   // Metatron's Cube — its own object now, not a flat overlay
   joinDim: 2.97,          // 2 = flat Fruit of Life, 3 = cuboctahedron, 4 = 24-cell
   joinSize: 0.98,
+  joinFade: 1,          // the whole figure's opacity, on top of the global glow
   joinReach: 0.59,        // 1 = every pair joined (the classic 78 lines)
   joinNodeSize: 0.062,
   joinLook: 0,          // 0 = stars, 1 = pearl spheres
