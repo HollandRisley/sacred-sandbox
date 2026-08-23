@@ -10,6 +10,7 @@ import {
   extLibrary, addExtension, removeExtension, activate, deactivate,
   isActive, activeExtension, setParam, onExtensionsChanged, EXAMPLE,
 } from './lib/extensions.js';
+import { assistantAvailable, writeExtension } from './lib/aiSmith.js';
 import { interpret } from './ai.js';
 
 /**
@@ -39,6 +40,10 @@ function buildExtensionPanel(row, onChange, bindings) {
   row.classList.add('extpanel');
   row.innerHTML = `<span class="lab">Library</span>
     <div class="extlist"></div>
+    <div class="extask hidden">
+      <input class="askwhat" type="text" placeholder="a kaleidoscope that breathes" autocomplete="off">
+      <button type="button" class="askgo">write it</button>
+    </div>
     <details class="extadd">
       <summary>write one</summary>
       <textarea class="extcode" spellcheck="false" rows="10"></textarea>
@@ -56,6 +61,42 @@ function buildExtensionPanel(row, onChange, bindings) {
   const noteEl = row.querySelector('.extnote');
   const codeEl = row.querySelector('.extcode');
   const nameEl = row.querySelector('.extname');
+
+  // The assistant only exists under the dev server, so the box only appears
+  // there. On the deployed site the note says where to find it rather than
+  // showing a control that cannot work.
+  const askEl = row.querySelector('.extask');
+  const whatEl = row.querySelector('.askwhat');
+  const goEl = row.querySelector('.askgo');
+  assistantAvailable().then((info) => {
+    if (!info) return;
+    askEl.classList.remove('hidden');
+    goEl.title = `${info.model} via ${info.endpoint}`;
+  });
+
+  goEl.addEventListener('click', async () => {
+    const want = whatEl.value.trim();
+    if (!want) { noteEl.textContent = 'say what you want to see'; return; }
+    goEl.disabled = true;
+    try {
+      // Written, then run, then repaired from the sandbox's own error if it
+      // did not work — which for a model small enough to run on a laptop is
+      // often. The code is shown; loading it is a separate, deliberate step.
+      const { code, attempts, meta, points } = await writeExtension(want, (step) => {
+        noteEl.textContent = step;
+      });
+      codeEl.value = code;
+      nameEl.value = meta.name || want.slice(0, 24);
+      row.querySelector('.extadd').open = true;
+      noteEl.textContent = attempts === 1
+        ? `wrote "${meta.name}" — ${points} points. Read it, then load it.`
+        : `wrote "${meta.name}" after ${attempts} attempts — ${points} points. Read it, then load it.`;
+    } catch (err) {
+      noteEl.textContent = err.message;
+    } finally {
+      goEl.disabled = false;
+    }
+  });
 
   row.querySelector('.extexample').addEventListener('click', () => {
     codeEl.value = EXAMPLE;

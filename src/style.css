@@ -855,3 +855,33 @@ body.landscape .gallery { grid-template-columns: repeat(auto-fill, minmax(96px, 
 .extload:hover, .extexample:hover { color: var(--ink); border-color: rgba(127, 216, 255, 0.5); }
 .extparams { margin-top: 10px; }
 .extnote { margin: 8px 0 0; }
+
+.extask { display: flex; gap: 5px; margin-bottom: 8px; }
+.extask.hidden { display: none; }
+.askwhat {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11.5px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.askgo {
+  flex: none;
+  border: 1px solid rgba(127, 216, 255, 0.45);
+  background: rgba(127, 216, 255, 0.1);
+  color: var(--ink);
+  border-radius: 7px;
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.askgo:disabled { opacity: 0.45; cursor: default; }
