@@ -524,15 +524,41 @@ Vite content-hashes the assets (`index-D78e7U65.js`), so they can be cached
 indefinitely; `index.html` should not be. On Blob that means setting
 `Cache-Control` per blob rather than once.
 
-## Saving
+## The gallery
 
-**Your setup** stores every parameter plus the camera position and target in
-`localStorage`, and restores it automatically on load — an artwork here is the
-combination of the two, since the same settings from a different angle is a
-different piece. Restoring only copies keys the current build still recognises,
-so an old save cannot inject parameters that no longer exist. Camera *zoom* is
-deliberately not stored: the layout code owns it, shrinking the view when the
-panel is open, so a restored value would just be overwritten.
+**Keep this** stores every parameter, the camera position and target, and a
+picture of what that looked like. A list of names tells you nothing about work
+made of light, so the gallery is a wall of thumbnails and the name sits under
+each one. Twenty pieces at about 12 kB each is a quarter of a megabyte; the cap
+is reported rather than quietly dropping the oldest, because losing something
+you made without being told is worse than being refused a new one.
+
+Loading only copies keys the current build still recognises, so an old save
+cannot inject parameters that no longer exist, and it resets first — merging
+onto whatever was on screen left the previous piece's leftovers underneath.
+Camera *zoom* is deliberately not stored: the layout code owns it, shrinking the
+view when the panel is open, so a restored value would just be overwritten. The
+single-slot save older builds wrote is migrated in on first read, and its key is
+left where it was so going back to an older build still finds it.
+
+### Thumbnails are rendered, not screenshotted
+
+A canvas only holds what was last *presented*, and presentation means
+compositing — so a tab that is hidden, backgrounded or simply mid-frame hands
+back a stale picture with no error to say so. Measured: two completely different
+scenes, one with every layer switched off, produced **byte-identical** captures.
+So the thumbnail is rendered into an offscreen target and read back, which owes
+nothing to whether anyone is looking.
+
+Two things had to be got right. WebGPU pads every row of a texture read up to a
+multiple of 256 bytes: at 480 wide a row is 1920, padded to 2048, and reading it
+as though it were tight shears the picture into diagonal streaks — which is
+exactly what the first thumbnails were. Sizing the target to a multiple of 64
+makes a row a multiple of 256 already, so there is nothing to account for. And
+driving the bloom pipeline into an offscreen target never returns, so the
+thumbnail is a straight render with the glow added back in two dimensions
+afterwards — a blurred copy composited over itself. At 240 pixels wide that is
+indistinguishable, and the piece looks wrong without any glow at all.
 
 ## What it opens on
 

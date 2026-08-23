@@ -690,3 +690,75 @@ body.landscape .r-blurb {
   overflow: hidden;
 }
 body.landscape.info-open .r-blurb { max-height: 46vh; opacity: 1; margin-top: 6px; }
+
+/* ---- the gallery -------------------------------------------------------- */
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.shot {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+.shot:hover { border-color: rgba(127, 216, 255, 0.5); }
+
+.shotimg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  padding: 0;
+  border: none;
+  background: #05070e;
+  cursor: pointer;
+}
+.shotimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.noshot {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--dim);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shotbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 6px;
+}
+.shotname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--dim);
+  cursor: text;
+}
+.shotname:hover { color: var(--ink); }
+.shotdel {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--dim);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.shotdel:hover { color: #ff8f8f; }
+
+/* Sideways the pane is 328px, so two to a row rather than three. */
+body.landscape .gallery { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }

@@ -568,28 +568,69 @@ export function buildUI(onChange, onLayout, store) {
     addSection(g, group.title, group.when);
   }
 
-  // ---- saved setup
+  // ---- the gallery
   const saved = document.createElement('section');
   saved.className = 'group';
-  saved.innerHTML = `<div class="ghead"><h2>Your setup</h2>
+  saved.innerHTML = `<div class="ghead"><h2>Gallery</h2>
       <div class="gacts">
-        <button type="button" data-store="share">share</button>
-        <button type="button" data-store="save">save</button>
-        <button type="button" data-store="restore">restore</button>
-        <button type="button" data-store="clear">clear</button>
+        <button type="button" data-act="share">share</button>
+        <button type="button" data-act="save">keep this</button>
       </div></div>
+    <div class="gallery"></div>
     <p class="note" id="storestatus"></p>`;
-  addSection(saved, 'Setup');
+  addSection(saved, 'Gallery');
 
   const storeStatus = saved.querySelector('#storestatus');
-  storeStatus.textContent = store.status();
-  for (const btn of saved.querySelectorAll('[data-store]')) {
+  const galleryEl = saved.querySelector('.gallery');
+
+  /**
+   * A wall of pictures, not a list of names. A piece made of light is not
+   * recognisable from a date, so the thumbnail is the label and the name is
+   * underneath it.
+   */
+  const paintGallery = () => {
+    const items = store.list();
+    galleryEl.textContent = '';
+    for (const item of items) {
+      const card = document.createElement('div');
+      card.className = 'shot';
+      card.innerHTML = `<button type="button" class="shotimg" title="Open ${item.name}">
+          ${item.thumb ? `<img src="${item.thumb}" alt="">` : '<span class="noshot">no preview</span>'}
+        </button>
+        <div class="shotbar">
+          <span class="shotname" role="button" tabindex="0" title="Rename">${item.name}</span>
+          <button type="button" class="shotdel" title="Remove ${item.name}">×</button>
+        </div>`;
+
+      card.querySelector('.shotimg').addEventListener('click', () => {
+        storeStatus.textContent = store.load(item.id);
+      });
+      card.querySelector('.shotdel').addEventListener('click', () => {
+        storeStatus.textContent = store.remove(item.id);
+        paintGallery();
+      });
+      const rename = () => {
+        const next = prompt('Name this piece', item.name);
+        if (next === null) return;
+        storeStatus.textContent = store.rename(item.id, next);
+        paintGallery();
+      };
+      const nameEl = card.querySelector('.shotname');
+      nameEl.addEventListener('click', rename);
+      nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') rename(); });
+      galleryEl.appendChild(card);
+    }
+    storeStatus.textContent = store.status();
+  };
+
+  for (const btn of saved.querySelectorAll('[data-act]')) {
     btn.addEventListener('click', async () => {
-      // Share has to await the compressor; the others are synchronous. Awaiting
-      // both keeps one code path.
-      storeStatus.textContent = await store[btn.dataset.store]();
+      // Share awaits the compressor; keeping awaits the render. One code path.
+      storeStatus.textContent = await store[btn.dataset.act]();
+      paintGallery();
     });
   }
+  paintGallery();
 
   // Command bar — text in, parameter patch out.
   const ai = document.createElement('section');

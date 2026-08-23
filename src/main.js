@@ -32,7 +32,10 @@ import { edgeTrails, isClosed, weld } from './geometry/trails.js';
 import { loadSpriteFolder, resolveSprites, spriteTexture } from './lib/sprites.js';
 import { metatronSpiral, HEXAGONS } from './geometry/metatronSpiral.js';
 import { PrismHalo } from './lib/prism.js';
-import { saveSetup, loadSetup, clearSetup, applySetup, describeSetup } from './lib/storage.js';
+import {
+  listSetups, getSetup, saveSetup, renameSetup, removeSetup,
+  applySetup, describeSetup, MAX_ITEMS,
+} from './lib/storage.js';
 import { shareLink, takeIncomingLink } from './lib/share.js';
 
 const smoothstep = (a, b, x) => {
@@ -174,6 +177,66 @@ async function createRenderer() {
     console.warn('WebGPU init failed, falling back to WebGL 2', err);
     return sizedRenderer(true);
   }
+}
+
+let _thumbTarget = null;
+
+/** One reused offscreen target for thumbnails, grown if a bigger one is asked for. */
+function thumbTarget(w, h) {
+  if (!_thumbTarget) {
+    _thumbTarget = new THREE.RenderTarget(w, h, {
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+    });
+  } else if (_thumbTarget.width !== w || _thumbTarget.height !== h) {
+    _thumbTarget.setSize(w, h);
+  }
+  return _thumbTarget;
+}
+
+/**
+ * Read-back pixels start at the bottom-left and the picture wants the top-left,
+ * so the rows are copied in reverse. Drawn at twice the final size and scaled
+ * down, which is the cheapest antialiasing there is.
+ */
+function flipToJpeg(pixels, w, h, outW, outH) {
+  const full = document.createElement('canvas');
+  full.width = w;
+  full.height = h;
+  const ctx = full.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  const row = w * 4;
+  // The target is sized so rows are already aligned, but derive the stride
+  // anyway rather than trust it: a silently sheared image is a hard bug to
+  // recognise from the outside, and this costs one comparison.
+  const stride = pixels.length > row * h ? Math.ceil(row / 256) * 256 : row;
+  for (let y = 0; y < h; y++) {
+    const from = (h - 1 - y) * stride;
+    if (from + row > pixels.length) continue;
+    img.data.set(pixels.subarray(from, from + row), y * row);
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const out = document.createElement('canvas');
+  out.width = outW;
+  out.height = outH;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#05070e';
+  octx.fillRect(0, 0, outW, outH);
+  octx.drawImage(full, 0, 0, outW, outH);
+
+  // The bloom, approximated: a blurred copy added over the top. The real pass
+  // thresholds first so only the bright cores bleed; blurring everything and
+  // adding it back at a third weight lands close enough at this size, and the
+  // piece looks wrong without any glow at all.
+  octx.save();
+  octx.globalCompositeOperation = 'lighter';
+  octx.globalAlpha = 0.34;
+  octx.filter = 'blur(4px)';
+  octx.drawImage(full, 0, 0, outW, outH);
+  octx.restore();
+
+  return out.toDataURL('image/jpeg', 0.72);
 }
 
 function createBloom(scene, camera) {
@@ -2303,19 +2366,28 @@ async function boot() {
   strandLines.forEach((l, i) => { l.beamSpeed = 0.7 * (i % 2 === 0 ? 1 : -1); });
 
   const ui = buildUI(onChange, resize, {
-    save: () => {
-      const ok = saveSetup(state, camera, controls);
-      return ok ? describeSetup(loadSetup()) : 'could not save (storage blocked?)';
+    list: () => listSetups(),
+    save: async () => {
+      // Captured before anything else so the picture is of what is on screen
+      // at the moment of asking, not of whatever a repaint leaves behind.
+      const thumb = window.sandbox?.capture ? await window.sandbox.capture() : null;
+      const { item, error } = saveSetup(state, camera, controls, { thumb });
+      return error || `kept "${item.name}"`;
     },
-    restore: () => {
-      const data = loadSetup();
-      if (!applySetup(data, state, camera, controls)) return 'nothing saved yet';
+    load: (id) => {
+      const item = getSetup(id);
+      if (!applySetup(item, state, camera, controls)) return 'that piece has gone';
       ui.refresh();
       onChange('*');
-      return `restored — ${describeSetup(data)}`;
+      return `opened "${item.name}" — ${describeSetup(item)}`;
     },
-    clear: () => { clearSetup(); return 'cleared'; },
-    status: () => describeSetup(loadSetup()),
+    rename: (id, name) => (renameSetup(id, name) ? 'renamed' : 'that piece has gone'),
+    remove: (id) => (removeSetup(id) ? 'removed' : 'that piece has gone'),
+    status: () => {
+      const n = listSetups().length;
+      if (!n) return 'nothing kept yet — “keep this” saves what is on screen';
+      return `${n} of ${MAX_ITEMS} kept · tap a picture to open it, its name to rename`;
+    },
     share: async () => {
       const url = await shareLink(state, camera, controls);
       if (!url) return 'this browser cannot build a link';
@@ -2341,10 +2413,12 @@ async function boot() {
   // A link beats a save, and a save beats the defaults. Someone who followed a
   // link came to see that particular position, so it should not be quietly
   // replaced by whatever they last saved on this device.
+  // A link beats the defaults. Nothing else does: the defaults are themselves a
+  // composition now, and a gallery is a place you choose to go rather than one
+  // that opens itself.
   const shared = await takeIncomingLink();
-  const saved = shared || loadSetup();
-  if (saved) {
-    applySetup(saved, state, camera, controls);
+  if (shared) {
+    applySetup(shared, state, camera, controls);
     ui.refresh();
   }
 
@@ -2433,6 +2507,67 @@ async function boot() {
       Object.assign(state, patch);
       ui.refresh();
       onChange('*');
+    },
+    /**
+     * A thumbnail of what is on screen, as a JPEG data URL.
+     *
+     * Rendered into an offscreen target and read back, rather than pulled off
+     * the canvas with `toDataURL`. A canvas only holds what was last
+     * *presented*, and presentation is compositing — so a tab that is hidden,
+     * backgrounded or simply mid-frame hands back a stale picture with no error
+     * to say so. Measured: two completely different scenes, every layer off in
+     * one of them, produced byte-identical captures. Reading the target is
+     * deterministic and owes nothing to whether anyone is looking.
+     *
+     * It also renders through the same pipeline the screen uses, so the
+     * thumbnail carries the bloom; and it clears the view offset first, so the
+     * shot is of the figure rather than of the figure shoved aside to make room
+     * for the panel.
+     */
+    async capture(w = 240, h = 150) {
+      // WebGPU pads every row of a texture read up to a multiple of 256 bytes.
+      // At 480 wide a row is 1920, which is padded to 2048, and reading it back
+      // as though it were tight shears the picture into diagonal streaks — the
+      // first thumbnails were unrecognisable for exactly this reason. A width
+      // that is a multiple of 64 makes a row a multiple of 256 already, so
+      // there is no padding to account for. 240 becomes 512, twice over.
+      const tw = Math.ceil((w * 2) / 64) * 64;
+      const target = thumbTarget(tw, Math.round((tw * h) / w));
+      const view = camera.view && camera.view.enabled ? { ...camera.view } : null;
+      const aspect = camera.aspect;
+      const zoom = camera.zoom;
+
+      camera.clearViewOffset();
+      camera.aspect = w / h;
+      camera.zoom = 1;
+      camera.updateProjectionMatrix();
+
+      let data = null;
+      try {
+        tick();                       // bring the scene up to date, on screen
+        renderer.setRenderTarget(target);
+        // Straight render, not the bloom pipeline: driving `RenderPipeline`
+        // into an offscreen target never returns. The glow is put back in two
+        // dimensions afterwards, which for something 240 pixels wide is
+        // indistinguishable and costs nothing.
+        await renderer.renderAsync(scene, camera);
+        // Returns the buffer; it does not fill one that is handed to it. Passing
+        // an array here makes it the `textureIndex` argument, which fails later
+        // and deep inside as "invalid value used as weak map key".
+        const pixels = await renderer.readRenderTargetPixelsAsync(
+          target, 0, 0, target.width, target.height,
+        );
+        data = flipToJpeg(pixels, target.width, target.height, w, h);
+      } catch (err) {
+        console.warn('Could not render a thumbnail', err);
+      } finally {
+        renderer.setRenderTarget(null);
+        camera.aspect = aspect;
+        camera.zoom = zoom;
+        if (view) camera.setViewOffset(view.fullWidth, view.fullHeight, view.offsetX, view.offsetY, view.width, view.height);
+        camera.updateProjectionMatrix();
+      }
+      return data;
     },
     /**
      * Run one update synchronously. A backgrounded tab throttles
