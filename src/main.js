@@ -414,6 +414,11 @@ solidGroup.add(solidPrism);
 polyGroup.add(polyPrism);
 rig.add(nodePrism);
 
+// Stars — points of light thrown out of the centre.
+const MAX_STARS = 700;
+const starField = new PrismHalo(MAX_STARS, 'soft');
+rig.add(starField);
+
 // Extensions — contributed maths, drawn like any other layer.
 const EXT_SEGMENTS = 6000;
 const EXT_DOTS = 1200;
@@ -520,6 +525,7 @@ function prepareSpriteMesh(slot, id, look) {
 
 const _sparkTint = new THREE.Color();
 const _joinSparkTint = new THREE.Color();
+const _starTint = new THREE.Color();
 const palette = { ring: new THREE.Color(), join: new THREE.Color(), solid: new THREE.Color(), poly: new THREE.Color() };
 
 /**
@@ -537,7 +543,7 @@ const palette = { ring: new THREE.Color(), join: new THREE.Color(), solid: new T
  * shape and moves the layer as a whole.
  */
 const layer = {};
-for (const k of ['rings', 'joins', 'solid', 'poly', 'core', 'merkaba', 'toroid', 'fib', 'emitter', 'ext']) {
+for (const k of ['rings', 'joins', 'solid', 'poly', 'core', 'merkaba', 'toroid', 'fib', 'emitter', 'ext', 'stars']) {
   layer[k] = new THREE.Color();
   layer[`${k}Alt`] = new THREE.Color();
 }
@@ -598,6 +604,7 @@ function applyLook() {
   setLayer('fib', 2, 0, state.hueFib);
   setLayer('emitter', 2, 0, state.hueEmitter);
   setLayer('ext', 1, 3, state.hueExt);
+  setLayer('stars', 0, 2, state.hueStars);
 
   rings.baseColor.copy(layer.rings);
   boundRings.baseColor.copy(layer.rings);
@@ -620,6 +627,8 @@ function applyLook() {
   nodeGlow.tint = _sparkTint;
   joinGlow.material.opacity = state.glow;
   joinGlow.tint = _joinSparkTint.copy(layer.joins).lerp(WHITE, 0.5);
+  starField.material.opacity = state.glow;
+  starField.tint = _starTint.copy(layer.stars).lerp(WHITE, 0.45);
   eggs.baseColor.copy(_pearlTint);
   phylloSpheres.baseColor.copy(_pearlTint2.copy(layer.fib).lerp(WHITE, wash));
 
@@ -2030,6 +2039,61 @@ function updateMetatronSpirals() {
   mspiralLines.setPaths(mspiralPaths);
 }
 
+// ---------------------------------------------------------------- stars
+
+const starHosts = Array.from({ length: MAX_STARS }, () => ({
+  pos: new THREE.Vector3(), radius: 0, fade: 0,
+}));
+const starList = [];
+const _starDir = new THREE.Vector3();
+
+/**
+ * STARS
+ *
+ * The node markers turned out to be the best thing in the piece — a hard core
+ * with diffraction spikes reads as a point of light in a way no sphere does —
+ * but they were tied to the lattice, so they could only ever appear where the
+ * figure had a vertex. This is the same spark, freed from the figure: thrown
+ * out of the centre in every direction and left to travel.
+ *
+ * Directions come from `armDirection`, the emitter's own distribution, so one
+ * control takes them from a flat ring in the mandala's plane to an even sphere
+ * — the golden angle again, packing a sphere rather than a sunflower.
+ *
+ * Each star is given its own place in the journey by the golden ratio rather
+ * than by an even division. An even division makes them leave in ranks, which
+ * reads as a machine; an irrational step scatters them along the whole path at
+ * any count, which reads as a sky.
+ */
+function updateStars() {
+  starField.visible = state.showStars;
+  if (!state.showStars) { starField.count = 0; return; }
+
+  const count = Math.min(Math.round(state.starCount), MAX_STARS);
+  const reach = state.starReach;
+  const spread = state.starSpread;
+  const rate = state.starRate;
+  starList.length = 0;
+
+  for (let i = 0; i < count; i++) {
+    const host = starHosts[i];
+    const u = frac(clock * rate + (i * 0.6180339887) % 1);
+    armDirection(i, count, spread, _starDir);
+    host.pos.copy(_starDir).multiplyScalar(u * reach);
+
+    // Full strength almost at once, then dissolving at the rim. Fading in from
+    // zero would make them appear a third of the way out and read as coming
+    // from a shell rather than from the centre — the same mistake the emitter
+    // made, and the same fix.
+    host.fade = Math.min(u / 0.05, 1) * (1 - smoothstep(0.7, 1, u));
+    host.radius = state.starSize * (0.35 + u * 1.2);
+    starList.push(host);
+  }
+
+  starField.faceCamera(camera);
+  starField.set(starList, state.starGlow * 3.4, 1);
+}
+
 // ---------------------------------------------------------------- extensions
 
 const extPool = Array.from({ length: EXT_SEGMENTS + 8 }, () => new THREE.Vector3());
@@ -2361,6 +2425,7 @@ function tick() {
   updateFibonacci();
   updateEmitter();
   updateExtensions();
+  updateStars();
   updateTethers();
   paintLattice();
   updateMetatronSpirals();

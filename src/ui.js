@@ -198,6 +198,7 @@ const VISIBILITY = [
   ['showPulses', 'Particles'],
   ['showSpirals', 'Spirals'],
   ['showEmitter', 'Pure geometry'],
+  ['showStars', 'Stars'],
   ['showExt', 'Extensions'],
 ];
 
@@ -518,6 +519,21 @@ const SPEC = [
     ],
   },
   {
+    title: 'Stars',
+    owner: 'showStars',
+    when: (s) => s.showStars,
+    note: 'The node spark, freed from the lattice: points of light thrown out of the centre in every direction and left to travel.',
+    controls: [
+      { key: 'starCount', label: 'How many', min: 10, max: 700, step: 10 },
+      { key: 'starRate', label: 'Speed', min: 0, max: 0.4, step: 0.005, read: (v) => (v < 0.003 ? 'held still' : v.toFixed(3)) },
+      { key: 'starSpread', label: 'Spread', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'flat ring' : v > 0.995 ? 'full sphere' : v.toFixed(2)) },
+      { key: 'starReach', label: 'Reach', min: 1, max: 8, step: 0.05 },
+      { key: 'starSize', label: 'Size', min: 0.01, max: 0.2, step: 0.002 },
+      { key: 'starGlow', label: 'Glow spread', min: 0.3, max: 3, step: 0.01 },
+      colourOf('hueStars'),
+    ],
+  },
+  {
     title: 'Extensions',
     owner: 'showExt',
     when: (s) => s.showExt,
@@ -579,6 +595,7 @@ export function buildUI(onChange, onLayout, store) {
     ['showMerkaba', 'Merkaba', 'Two tetrahedra, one inverted, turning against each other.'],
     ['showPoly', 'Fourth dimension', 'A regular 4-polytope turning in planes that have no axis in our space, projected down into it.'],
     ['showFib', 'Fibonacci', 'φ, the golden angle, and the three rectangles whose corners are an icosahedron.'],
+    ['showStars', 'Stars', 'Points of light thrown out of the centre in every direction, each finding its own place in the journey.'],
     ['showExt', 'Extensions', 'Maths written by somebody else, running where it can reach neither this page nor the network.'],
   ];
 

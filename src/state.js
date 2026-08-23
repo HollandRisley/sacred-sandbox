@@ -156,6 +156,15 @@ export const state = {
   xrHeight: 1.4,
   xrDistance: 1.6,
 
+  // Stars — the node spark, freed from the lattice and thrown out of the centre.
+  showStars: false,
+  starCount: 260,
+  starRate: 0.07,
+  starSpread: 0.85,
+  starReach: 4.2,
+  starSize: 0.05,
+  starGlow: 1,      // how far each spark's light reaches past its point
+
   // Extensions — contributed maths, drawn like any other layer. The
   // extension's own parameters live with the extension, not here, because they
   // differ from one to the next.
@@ -177,6 +186,7 @@ export const state = {
   hueFib: 0,
   hueEmitter: 0,
   hueExt: 0,
+  hueStars: 0,
 
   // Look
   palette: 0,

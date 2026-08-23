@@ -669,6 +669,26 @@ The ask box only appears when a model actually answers — the health check prob
 the endpoint rather than reporting itself well because the route exists, since a
 button that fails when pressed is worse than no button.
 
+## Stars
+
+The node markers turned out to be the best thing in the piece — a hard core with
+diffraction spikes reads as a point of light in a way no sphere ever does — but
+they were tied to the lattice, so they could only appear where the figure
+happened to have a vertex. **Stars** is the same spark freed from the figure:
+thrown out of the centre in every direction and left to travel.
+
+Directions come from `armDirection`, the emitter's own distribution, so one
+control takes them from a flat ring in the mandala's plane to an even sphere.
+Each star is given its place in the journey by the golden ratio rather than by
+an even division — an even division makes them leave in ranks, which reads as a
+machine, where an irrational step scatters them along the whole path at any
+count and reads as a sky.
+
+They reach full strength almost at once and dissolve at the rim. Fading in from
+zero would make them appear a third of the way out and read as coming from a
+shell rather than from the centre — the same mistake the emitter made, and the
+same fix.
+
 ## The gallery
 
 **Keep this** stores every parameter, the camera position and target, and a
