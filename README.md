@@ -8,6 +8,10 @@ the mandala is an object you turn rather than a picture you look at.
 
 No plugin, no install, no app store.
 
+Working on it with an AI assistant, or just want the short version of how not to
+break it? `CLAUDE.md` has the module map, the frame order, and the invariants —
+each of which was learned by breaking it.
+
 ## Running it
 
 **You need the script name.** `npm run` on its own only prints the list of
@@ -866,8 +870,7 @@ What is left, roughly in the order it is likely to happen:
 - **A local AI helper** — describe the maths you want and have it written for
   you, against a self-hosted model or your own key, on your own machine. Not a
   hosted endpoint.
-- **`CLAUDE.md`** — the invariants that are easy to violate, for anyone
-  extending this.
+- ~~`CLAUDE.md`~~ — done.
 
 **Still open**
 
