@@ -74,6 +74,7 @@ export const state = {
 
   // Merkaba
   merkabaSize: 1.15,
+  merkabaFade: 1,    // its own opacity, on top of the global glow
   merkabaSpin: 0.35,
 
   // Fibonacci

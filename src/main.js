@@ -660,6 +660,12 @@ function applyLook() {
   // Metatron's 78 lines all converge on one point; at full brightness the
   // centre of the figure saturates to white and the structure disappears.
   joinLines.setOpacity(g * 0.6, state.halo * 0.7, g * 0.8);
+  // The merkaba is two solids occupying the same space, so it is the layer most
+  // often wanted as a ghost around everything else rather than as the thing in
+  // front. Its own dial rides on top of the global glow.
+  const mk = state.merkabaFade;
+  merkabaUp.setOpacity(g * 0.95 * mk, state.halo * mk, g * mk);
+  merkabaDown.setOpacity(g * 0.95 * mk, state.halo * mk, g * mk);
   mspiralLines.applyTint(layer.joins);
   tetherLines.setOpacity(g * 0.45, state.halo * 0.6, g * 0.7);
 

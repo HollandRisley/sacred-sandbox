@@ -395,6 +395,7 @@ const SPEC = [
     note: 'Two tetrahedra, one inverted, turning against each other.',
     controls: [
       { key: 'merkabaSize', label: 'Size', min: 0.3, max: 3, step: 0.01 },
+      { key: 'merkabaFade', label: 'Opacity', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'invisible' : v > 0.995 ? 'full' : `${Math.round(v * 100)}%`) },
       { key: 'merkabaSpin', label: 'Counter-spin', min: -1.2, max: 1.2, step: 0.01 },
       colourOf('hueMerkaba'),
     ],
