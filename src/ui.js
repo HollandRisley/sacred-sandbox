@@ -405,7 +405,12 @@ const SPEC = [
     when: (s) => s.showFib,
     note: 'φ is not decoration here: the icosahedron’s twelve vertices are the corners of three golden rectangles.',
     controls: [
-      { key: 'spiralArms', label: 'Golden spirals', min: 0, max: 8, step: 1, read: (v) => (v === 0 ? 'off' : `${v} arms`) },
+      { key: 'spiralArms', label: 'Golden spirals', min: 0, max: 24, step: 1, read: (v) => (
+        v === 0 ? 'off' : v === 1 ? 'one' : v === 2 ? 'a facing pair' : v === 3 ? 'a triangle'
+          : v === 4 ? 'the points of a compass' : `${v} evenly spaced`) },
+      // Flat, they are the same arrangement at any count seen from above. This
+      // tilts each one towards its own direction on a sphere.
+      { key: 'spiralSpread', label: 'Spread', min: 0, max: 1, step: 0.01, when: (s) => Math.round(s.spiralArms) > 1, read: (v) => (v < 0.005 ? 'one plane' : v > 0.995 ? 'a full shell' : v.toFixed(2)) },
       { key: 'spiralRise', label: 'Spiral rise', min: 0, max: 1.2, step: 0.01, read: (v) => (v < 0.005 ? 'flat' : v.toFixed(2)) },
       { key: 'phyllo', label: 'Phyllotaxis', min: 0, max: 400, step: 5, read: (v) => (v === 0 ? 'off' : `${v} seeds`) },
       { key: 'phylloSize', label: 'Seed size', min: 0.008, max: 0.12, step: 0.002 },
@@ -547,7 +552,6 @@ const SPEC = [
       { key: 'extSpin', label: 'Spin', min: -0.8, max: 0.8, step: 0.01 },
       { key: 'extDotSize', label: 'Dots', min: 0, max: 0.4, step: 0.005, read: (v) => (v < 0.001 ? 'off' : v.toFixed(3)) },
       colourOf('hueExt'),
-      { key: '__extensions', type: 'extensions' },
     ],
   },
   {
@@ -913,6 +917,76 @@ export function buildUI(onChange, onLayout, store) {
     if (group.title === 'Time') timeIndex = idx;
   }
 
+  /**
+   * THE TOP NAV
+   *
+   * Two things are not layers and do not belong on a rail of layers: the
+   * gallery of saved pieces, and the studio where maths gets written. They sit
+   * beside the panel button as fly-outs — reachable from anywhere, including
+   * while the panel is shut and the piece is filling the screen.
+   */
+  const GALLERY_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 14l4.5-4.5 4 4 3-3L21 15"/><circle cx="8.5" cy="8.5" r="1.4"/></svg>`;
+  const STUDIO_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8l-4 4 4 4"/><path d="M15 8l4 4-4 4"/><path d="M13 5.5l-2 13"/></svg>`;
+
+  const topnav = document.createElement('nav');
+  topnav.id = 'topnav';
+  document.body.appendChild(topnav);
+
+  const flyouts = [];
+  const closeFlyouts = (except) => {
+    for (const f of flyouts) {
+      if (f.panel === except) continue;
+      f.panel.classList.remove('open');
+      f.button.classList.remove('on');
+      f.button.setAttribute('aria-expanded', 'false');
+    }
+  };
+
+  const addFlyout = (label, icon) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'navbtn';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-expanded', 'false');
+    button.innerHTML = icon;
+    topnav.appendChild(button);
+
+    const panel = document.createElement('div');
+    panel.className = 'flyout';
+    panel.innerHTML = `<div class="flyhead"><h2>${label}</h2><button type="button" class="flyclose" aria-label="Close">×</button></div>
+      <div class="flybody"></div>`;
+    document.body.appendChild(panel);
+
+    const toggleOpen = () => {
+      const open = !panel.classList.contains('open');
+      closeFlyouts(open ? panel : null);
+      panel.classList.toggle('open', open);
+      button.classList.toggle('on', open);
+      button.setAttribute('aria-expanded', String(open));
+    };
+    button.addEventListener('click', toggleOpen);
+    panel.querySelector('.flyclose').addEventListener('click', toggleOpen);
+    flyouts.push({ panel, button });
+    return panel.querySelector('.flybody');
+  };
+
+  const galleryBody = addFlyout('Gallery', GALLERY_ICON);
+  const studioBody = addFlyout('Studio', STUDIO_ICON);
+
+  // A click anywhere else puts them away, but not a click inside one — and not
+  // the button that opened it, which does its own toggling.
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.flyout') || e.target.closest('#topnav')) return;
+    closeFlyouts(null);
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeFlyouts(null); });
+
+  const studioRow = document.createElement('div');
+  studioRow.className = 'row';
+  buildExtensionPanel(studioRow, onChange, bindings);
+  studioBody.appendChild(studioRow);
+
   // ---- the gallery
   const saved = document.createElement('section');
   saved.className = 'group';
@@ -923,7 +997,8 @@ export function buildUI(onChange, onLayout, store) {
       </div></div>
     <div class="gallery"></div>
     <p class="note" id="storestatus"></p>`;
-  addSection(saved, 'Gallery');
+  saved.classList.add('flysection');
+  galleryBody.appendChild(saved);
 
   const storeStatus = saved.querySelector('#storestatus');
   const galleryEl = saved.querySelector('.gallery');

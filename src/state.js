@@ -78,6 +78,7 @@ export const state = {
 
   // Fibonacci
   spiralArms: 2,
+  spiralSpread: 0,   // 0 = all in one plane, 1 = evenly distributed over a sphere
   spiralRise: 0.35,
   phyllo: 0,
   phylloSize: 0.03,

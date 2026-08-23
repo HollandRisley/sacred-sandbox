@@ -694,6 +694,32 @@ solid and travels out with it, and the solid has its own size, transparency and
 glow so it can be a lantern around the light rather than a lid over it. Size at
 zero hides the star if you want only the solid.
 
+## Spirals out of the plane
+
+Flat, the golden spirals are evenly spaced round one turn: two face opposite
+ways, three make a triangle, four the points of a compass. That is the same
+arrangement at every count, seen from above.
+
+**Spread** tilts each arm's plane towards its own direction on a sphere, taken
+from the emitter's distribution — an even ring blended into a Fibonacci sphere,
+latitudes spaced for equal area and longitudes turned by the golden angle. So
+the one control that opens two arms into a facing pair opens twenty into an even
+shell, and nothing clumps at the poles on the way. Measured at spread 0 the
+arms never leave the plane whatever the count; at spread 1 with twelve arms they
+reach 3.17 out of the plane against a radius of 3.19.
+
+## The top nav
+
+Two things are not layers and do not belong on a rail of layers: the gallery of
+saved pieces, and the studio where maths gets written. They sit beside the panel
+button as fly-outs, reachable from anywhere — including while the panel is shut
+and the piece has the whole screen. One at a time; a click anywhere else, or
+Escape, puts them away.
+
+The **Studio** holds the extension library, the box to write one by hand, and
+the box to ask for one. The Extensions section on the rail keeps only what the
+layer itself needs — scale, spin, dots, colour.
+
 ## Stars
 
 The node markers turned out to be the best thing in the piece — a hard core with

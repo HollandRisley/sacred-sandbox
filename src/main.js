@@ -70,7 +70,7 @@ const MSPIRAL_PTS = (MSPIRAL_STEPS_IN + MSPIRAL_STEPS_OUT) * MSPIRAL_PER_STEP + 
 const MAX_ARMS = 60;
 const MAX_BEADS = 10;
 const SPIRAL_POINTS = 150;
-const MAX_SPIRALS = 8;
+const MAX_SPIRALS = 24;
 const MAX_PHYLLO = 400;
 // Worst case particles per path: 5 pulses × the longest trail (flames, 7).
 const PULSE_CAP = 35;
@@ -1948,6 +1948,9 @@ function updateMerkaba() {
 const spiralPool = Array.from({ length: MAX_SPIRALS * (SPIRAL_POINTS + 1) }, () => new THREE.Vector3());
 let spiralCursor = 0;
 const takeSpiralPoint = () => spiralPool[spiralCursor++];
+const _spiralAxis = new THREE.Vector3();
+const _spiralTilt = new THREE.Quaternion();
+const _spiralQuat = new THREE.Quaternion();
 const spiralPaths = [];
 const phylloList = [];
 let phylloCache = [];
@@ -1965,11 +1968,34 @@ function updateFibonacci() {
   }
 
   const arms = Math.min(Math.round(state.spiralArms), MAX_SPIRALS);
+  const spread = state.spiralSpread;
   for (let i = 0; i < arms; i++) {
     // Arms evenly spaced round the turn; the spiral itself also creeps with the
     // clock so growth reads as continuous rather than as a static drawing.
     const phase = (i / arms) * Math.PI * 2 + clock * state.emanate * Math.PI;
     const pts = goldenSpiral(3, SPIRAL_POINTS, outerR, state.spiralRise, phase, takeSpiralPoint);
+
+    /**
+     * OUT OF THE PLANE
+     *
+     * Flat, the arms are evenly spaced round one turn: two face opposite ways,
+     * three make a triangle, four the points of a compass. That is the same
+     * arrangement at every count, seen from above.
+     *
+     * Spread tilts each arm's plane towards its own direction on a sphere,
+     * taken from the emitter's distribution — an even ring blended into a
+     * Fibonacci sphere, latitudes spaced for equal area and longitudes turned
+     * by the golden angle. So the same control that opens two arms into a pair
+     * facing away from each other opens twenty into an even shell, and nothing
+     * clumps at the poles on the way.
+     */
+    if (spread > 0.002 && arms > 1) {
+      armDirection(i, arms, 1, _spiralAxis);
+      _spiralTilt.setFromUnitVectors(Z_AXIS, _spiralAxis);
+      _spiralQuat.identity().slerp(_spiralTilt, spread);
+      for (const pt of pts) pt.applyQuaternion(_spiralQuat);
+    }
+
     spiralPaths.push({ pts, fade: 0.85, phase: i / arms });
   }
   spiralLines.setPaths(spiralPaths);
