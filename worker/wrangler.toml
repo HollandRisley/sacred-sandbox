@@ -1,0 +1,27 @@
+name = "sacred-sandbox-ai"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# The contract document is imported as text and bundled, so there is one copy of
+# it in the repository serving the reader, the dev server and this Worker.
+[[rules]]
+type = "Text"
+globs = ["**/*.md"]
+fallthrough = true
+
+[ai]
+binding = "AI"
+
+# Only needed if the site is served from an origin other than this Worker.
+# Same-origin deployments can leave it empty.
+[vars]
+AI_MODEL = "@cf/qwen/qwen2.5-coder-32b-instruct"
+DAILY_LIMIT = "25"
+ALLOWED_ORIGINS = ""
+
+# Per-visitor counters and the kill switch. Create with:
+#   npx wrangler kv namespace create QUOTA
+# then paste the id here.
+# [[kv_namespaces]]
+# binding = "QUOTA"
+# id = "…"

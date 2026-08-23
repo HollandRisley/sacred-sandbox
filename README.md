@@ -898,8 +898,9 @@ What is left, roughly in the order it is likely to happen:
 
 - ~~A local gallery~~ — done.
 - ~~The extension sandbox~~ — done; the runtime that uses it is next.
-- **A Cloudflare Worker** — shared setups by short link, and a curated public
-  gallery. Uploaded images stay local and never travel.
+- **A Cloudflare Worker for the gallery** — shared setups by short link, and a
+  curated public gallery. Uploaded images stay local and never travel. The
+  assistant half of the Worker is written; the gallery half is not.
 - **User extensions** — a data-only contract (numbers in, points and edges out)
   run in a null-origin iframe with `connect-src 'none'`, so contributed maths
   can reach neither the page nor the network. The sandbox is the part to build
