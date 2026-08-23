@@ -524,6 +524,45 @@ Vite content-hashes the assets (`index-D78e7U65.js`), so they can be cached
 indefinitely; `index.html` should not be. On Blob that means setting
 `Cache-Control` per blob rather than once.
 
+## Running somebody else's maths
+
+Contributed geometry is untrusted code — written by a stranger, or by a model,
+and either way capable of being wrong in ways nobody intended. It runs behind
+two walls, and then in a worker behind those.
+
+The outer wall is an iframe with `sandbox="allow-scripts"` and **no**
+`allow-same-origin`, which gives the document an *opaque* origin: it belongs to
+nobody, so it cannot reach this page's DOM, variables, storage or cookies. The
+inner wall is a policy of `default-src 'none'` with `connect-src 'none'`, which
+is what actually removes `fetch`, `XMLHttpRequest`, `sendBeacon` and
+`WebSocket` — an extension can neither send out what it was given nor pull down
+more code to run. Inside both, the extension runs in a worker, so a loop that
+never ends blocks nothing anyone can see and can simply be terminated.
+
+Measured rather than assumed:
+
+| | |
+|---|---|
+| iframe origin | `null` |
+| blob worker inside it | starts and replies |
+| fetch / XHR / beacon / WebSocket | all four refused, four `connect-src` violations |
+| parent DOM, storage, cookies | unreachable |
+| endless loop | terminated at the 120 ms frame budget |
+| `NaN` coordinate | refused before it reaches a buffer |
+| 400,000 points | refused at the 60,000 cap |
+| reaching for `parent` | *"parent is not defined"* — there is no parent in a worker |
+
+**The harness is inlined, not fetched.** A document loaded into a sandboxed
+iframe by `src` never runs its scripts — measured, with and without a policy,
+while the same bytes as `srcdoc` run perfectly. So it is carried as a string.
+That also removes a second file to keep in step and a path to resolve when the
+site is served from a sub-path.
+
+`new ExtensionSandbox().selftest()` reports on its own confinement from the
+console, and is written to be honest about it: an earlier version called
+`XMLHttpRequest` and `WebSocket` "allowed" because their constructors had not
+thrown, when the policy was in fact refusing both a moment later.
+
 ## The gallery
 
 **Keep this** stores every parameter, the camera position and target, and a
@@ -769,8 +808,8 @@ What is left, roughly in the order it is likely to happen:
 
 **From the plan** (`gallery, extensions, and a landscape UI`)
 
-- **A local gallery** — many named setups with preview thumbnails, replacing the
-  single save slot.
+- ~~A local gallery~~ — done.
+- ~~The extension sandbox~~ — done; the runtime that uses it is next.
 - **A Cloudflare Worker** — shared setups by short link, and a curated public
   gallery. Uploaded images stay local and never travel.
 - **User extensions** — a data-only contract (numbers in, points and edges out)
