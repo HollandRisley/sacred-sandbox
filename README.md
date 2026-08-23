@@ -632,6 +632,43 @@ One thing this does not do yet: an extension's parameters live with the
 extension rather than in `state`, so a shared link carries the rest of the piece
 but not them.
 
+### Asking for it instead of writing it
+
+Describe what you want and have the code written. Run the dev server, copy
+`.env.example` to `.env.local`, point it at a local model, and an ask box
+appears above the library.
+
+It runs on your machine and nowhere else. The route is registered with Vite's
+`apply: 'serve'`, so it exists only under `npm run dev` and is not in a built
+bundle at all — checked, and the production bundle contains no endpoint, no key,
+no model name and no provider. Nothing is paid per request, and no key ever
+reaches a browser.
+
+The default target is anything speaking the OpenAI chat-completions shape —
+Ollama, LM Studio, llama.cpp's server, vLLM — which makes a self-hosted open
+model the ordinary path rather than the fallback. `AI_PROVIDER=anthropic` uses
+your own key through the official SDK instead.
+
+**`docs/extensions.md` is the system prompt.** It is read fresh on every
+request, so improving the documentation improves the generator: one description
+of the contract, serving both the person and the model.
+
+**The repair loop is the point.** A model small enough to run on a laptop will
+often not get this right first time — points as objects rather than a flat
+array, a missing `closed`, an `import` it was told not to use. So the code is
+run in the sandbox immediately and, if it fails, the *exact* error goes back for
+another attempt, up to twice. The error names the rule that was broken, which is
+worth far more to the model than the request repeated. It is asked for a second
+frame as well, because plenty of generated code works at `t = 0` and divides by
+zero a moment later.
+
+Nothing is saved and nothing is drawn until you say so: the code appears in the
+box for you to read, and loading it is a separate, deliberate click.
+
+The ask box only appears when a model actually answers — the health check probes
+the endpoint rather than reporting itself well because the route exists, since a
+button that fails when pressed is worse than no button.
+
 ## The gallery
 
 **Keep this** stores every parameter, the camera position and target, and a
@@ -867,9 +904,7 @@ What is left, roughly in the order it is likely to happen:
   run in a null-origin iframe with `connect-src 'none'`, so contributed maths
   can reach neither the page nor the network. The sandbox is the part to build
   first, because it is the part that can be wrong.
-- **A local AI helper** — describe the maths you want and have it written for
-  you, against a self-hosted model or your own key, on your own machine. Not a
-  hosted endpoint.
+- ~~A local AI helper~~ — done.
 - ~~`CLAUDE.md`~~ — done.
 
 **Still open**
