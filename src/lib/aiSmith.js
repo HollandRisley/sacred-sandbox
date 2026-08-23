@@ -45,11 +45,21 @@ export async function assistantAvailable() {
   return cached;
 }
 
+/**
+ * How long to wait before giving up. Generous, because a local model that has
+ * been idle reloads its weights before it writes a word — measured at 51
+ * seconds for a twenty-gigabyte model on a warm machine — but not unbounded,
+ * because a request that will never answer should say so rather than leave a
+ * button disabled forever.
+ */
+export const PATIENCE = 300_000;
+
 async function askOnce(want, previous, error) {
   const res = await fetch(new URL(WRITE, document.baseURI), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ want, previous, error }),
+    signal: AbortSignal.timeout(PATIENCE),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `the assistant answered ${res.status}`);
@@ -71,7 +81,15 @@ export async function writeExtension(want, onStep = () => {}) {
 
   for (let attempt = 1; attempt <= MAX_REPAIRS + 1; attempt++) {
     onStep(attempt === 1 ? 'writing…' : `fixing (${attempt - 1} of ${MAX_REPAIRS})…`);
-    const code = await askOnce(want, previous, lastError);
+    let code;
+    try {
+      code = await askOnce(want, previous, lastError);
+    } catch (err) {
+      // A timeout is not the model being wrong, it is the model being absent
+      // or overwhelmed, and it needs saying differently.
+      if (err.name === 'TimeoutError') throw new Error('the model did not answer in five minutes — is it still running?');
+      throw err;
+    }
 
     onStep('testing…');
     const probe = new ExtensionSandbox();

@@ -77,7 +77,9 @@ moves with t and has two or three parameters worth turning.`;
         'Content-Type': 'application/json',
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
-      body: JSON.stringify({ model, messages, temperature: 0.7, stream: false }),
+      // keep_alive is Ollama's; anything else ignores it. Without it the model
+      // is dropped after a few minutes and every question pays the reload.
+      body: JSON.stringify({ model, messages, temperature: 0.7, stream: false, keep_alive: '30m' }),
     });
     if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`);
     const data = await res.json();
@@ -114,11 +116,24 @@ moves with t and has two or three parameters worth turning.`;
         // route exists would put a button on screen that fails when pressed,
         // which is worse than no button.
         let reachable = provider === 'anthropic' ? Boolean(key) : false;
+        let warm = provider === 'anthropic';
         if (provider !== 'anthropic') {
           try {
             const models = endpoint.replace(/\/chat\/completions\/?$/, '/models');
             const probe = await fetch(models, { signal: AbortSignal.timeout(1500) });
             reachable = probe.ok;
+            // Whether the weights are actually resident. Ollama drops a model
+            // after a few minutes idle, and reloading twenty gigabytes off disk
+            // is most of the wait on a first request — worth saying out loud
+            // rather than leaving someone watching a button do nothing.
+            try {
+              const ps = await fetch(endpoint.replace(/\/v1\/chat\/completions\/?$/, '/api/ps'),
+                { signal: AbortSignal.timeout(1200) });
+              if (ps.ok) {
+                const running = (await ps.json()).models || [];
+                warm = running.some((m) => (m.name || '').startsWith(String(model).split(':')[0]));
+              }
+            } catch { /* not Ollama, or it does not answer /api/ps */ }
           } catch {
             reachable = false;
           }
@@ -128,6 +143,7 @@ moves with t and has two or three parameters worth turning.`;
           provider,
           model,
           endpoint: provider === 'anthropic' ? 'anthropic' : endpoint,
+          warm,
           why: reachable ? '' : (provider === 'anthropic' ? 'no AI_KEY set' : `nothing answering at ${endpoint}`),
         });
       });

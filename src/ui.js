@@ -38,14 +38,25 @@ const colourOf = (key) => ({
  */
 function buildExtensionPanel(row, onChange, bindings) {
   row.classList.add('extpanel');
-  row.innerHTML = `<span class="lab">Library</span>
-    <div class="extlist"></div>
-    <div class="extask hidden">
-      <input class="askwhat" type="text" placeholder="a kaleidoscope that breathes" autocomplete="off">
-      <button type="button" class="askgo">write it</button>
+  row.innerHTML = `<div class="extask hidden">
+      <p class="studioblurb">Describe a shape and the model writes the maths for it — a small
+        program that turns numbers into geometry, run where it can reach neither this page nor
+        the network. You get the code to read before anything is drawn.</p>
+      <textarea class="askwhat" rows="3" spellcheck="false"
+        placeholder="a kaleidoscope that breathes&#10;a torus made of interwoven spirals&#10;a flower whose petals open and close"></textarea>
+      <div class="askrow">
+        <button type="button" class="askgo">write it</button>
+        <span class="askstate"></span>
+      </div>
+      <p class="note askmodel"></p>
     </div>
+    <p class="note extoffline hidden">The assistant runs on your own machine. Start the dev
+      server, point <code>.env.local</code> at a local model, and the box appears here.</p>
+
+    <span class="lab">Library</span>
+    <div class="extlist"></div>
     <details class="extadd">
-      <summary>write one</summary>
+      <summary>write one by hand</summary>
       <textarea class="extcode" spellcheck="false" rows="10"></textarea>
       <div class="extacts">
         <input class="extname" type="text" placeholder="name it" autocomplete="off">
@@ -68,32 +79,52 @@ function buildExtensionPanel(row, onChange, bindings) {
   const askEl = row.querySelector('.extask');
   const whatEl = row.querySelector('.askwhat');
   const goEl = row.querySelector('.askgo');
+  const stateEl = row.querySelector('.askstate');
+  const modelEl = row.querySelector('.askmodel');
   assistantAvailable().then((info) => {
-    if (!info) return;
+    if (!info) { row.querySelector('.extoffline').classList.remove('hidden'); return; }
     askEl.classList.remove('hidden');
     goEl.title = `${info.model} via ${info.endpoint}`;
+    // Cold means the weights are not resident and the first question pays for
+    // loading them. Saying so is the difference between "slow" and "broken".
+    modelEl.textContent = info.warm
+      ? `${info.model} — loaded and ready`
+      : `${info.model} — not loaded yet, so the first question takes about a minute`;
   });
 
   goEl.addEventListener('click', async () => {
     const want = whatEl.value.trim();
-    if (!want) { noteEl.textContent = 'say what you want to see'; return; }
+    if (!want) { stateEl.textContent = 'say what you want to see'; return; }
     goEl.disabled = true;
+
+    // A local model can take a minute, and a disabled button beside a silent
+    // panel is indistinguishable from a crash. The clock runs so there is
+    // always something moving.
+    const started = Date.now();
+    let step = 'writing…';
+    const tick = setInterval(() => {
+      stateEl.textContent = `${step}  ${Math.round((Date.now() - started) / 1000)}s`;
+    }, 200);
+    stateEl.classList.add('working');
+
     try {
       // Written, then run, then repaired from the sandbox's own error if it
       // did not work — which for a model small enough to run on a laptop is
       // often. The code is shown; loading it is a separate, deliberate step.
-      const { code, attempts, meta, points } = await writeExtension(want, (step) => {
-        noteEl.textContent = step;
-      });
+      const { code, attempts, meta, points } = await writeExtension(want, (s) => { step = s; });
       codeEl.value = code;
       nameEl.value = meta.name || want.slice(0, 24);
       row.querySelector('.extadd').open = true;
-      noteEl.textContent = attempts === 1
-        ? `wrote "${meta.name}" — ${points} points. Read it, then load it.`
-        : `wrote "${meta.name}" after ${attempts} attempts — ${points} points. Read it, then load it.`;
+      const took = Math.round((Date.now() - started) / 1000);
+      stateEl.textContent = attempts === 1
+        ? `wrote "${meta.name}" in ${took}s — ${points} points`
+        : `wrote "${meta.name}" after ${attempts} attempts, ${took}s — ${points} points`;
+      noteEl.textContent = 'Read the code below, then load it.';
     } catch (err) {
-      noteEl.textContent = err.message;
+      stateEl.textContent = err.message;
     } finally {
+      clearInterval(tick);
+      stateEl.classList.remove('working');
       goEl.disabled = false;
     }
   });
@@ -946,7 +977,7 @@ export function buildUI(onChange, onLayout, store) {
     }
   };
 
-  const addFlyout = (label, icon) => {
+  const addFlyout = (label, icon, shape) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'navbtn';
@@ -957,7 +988,7 @@ export function buildUI(onChange, onLayout, store) {
     topnav.appendChild(button);
 
     const panel = document.createElement('div');
-    panel.className = 'flyout';
+    panel.className = `flyout${shape ? ` ${shape}` : ''}`;
     panel.innerHTML = `<div class="flyhead"><h2>${label}</h2><button type="button" class="flyclose" aria-label="Close">×</button></div>
       <div class="flybody"></div>`;
     document.body.appendChild(panel);
@@ -976,7 +1007,7 @@ export function buildUI(onChange, onLayout, store) {
   };
 
   const galleryBody = addFlyout('Gallery', GALLERY_ICON);
-  const studioBody = addFlyout('Studio', STUDIO_ICON);
+  const studioBody = addFlyout('Studio', STUDIO_ICON, 'wide');
 
   // A click anywhere else puts them away, but not a click inside one — and not
   // the button that opened it, which does its own toggling.

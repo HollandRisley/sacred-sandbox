@@ -669,6 +669,17 @@ The ask box only appears when a model actually answers — the health check prob
 the endpoint rather than reporting itself well because the route exists, since a
 button that fails when pressed is worse than no button.
 
+**It is slow, and the panel has to say so.** A local model of any size takes tens
+of seconds, and Ollama drops its weights after a few minutes idle, so a first
+question can spend most of a minute reloading twenty gigabytes before writing a
+word — measured at 51 seconds cold against 69 warm. A disabled button beside a
+silent panel is indistinguishable from a crash, so the studio runs a clock from
+the moment you ask, says which step it is on, and reports whether the model is
+resident before you even ask. Requests carry `keep_alive`, so the second
+question does not pay the reload again. And the wait is bounded: five minutes,
+after which it says the model did not answer rather than staying disabled
+forever.
+
 ### A shell has to be gone before it wraps
 
 Emanation releases concentric shells from the centre and carries them out; when

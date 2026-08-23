@@ -1063,3 +1063,76 @@ body.landscape .flyout { top: max(56px, calc(env(safe-area-inset-top) + 56px)); 
 /* Inside a fly-out the section is the whole panel, so it drops its chrome. */
 .flysection { border: none; padding: 0; margin: 0; }
 .flysection .ghead h2 { display: none; }
+
+/* ---- the studio, given the side of the screen ---------------------------- */
+
+.flyout.wide {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: min(460px, 100vw);
+  max-height: none;
+  border-radius: 0;
+  border-top: none;
+  border-bottom: none;
+  border-right: none;
+}
+body.panel-open .flyout.wide { right: var(--panel-w); }
+@media (max-width: 819px) {
+  body.panel-open .flyout.wide { right: 0; }
+}
+body.landscape .flyout.wide { top: 0; max-height: none; }
+
+.studioblurb {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+.studioblurb code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--ink);
+}
+
+.extask { display: block; margin-bottom: 14px; }
+.askwhat {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.askwhat::placeholder { color: rgba(141, 151, 189, 0.45); }
+.askwhat:focus { outline: none; border-color: rgba(127, 216, 255, 0.5); }
+
+.askrow { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.askstate { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+/* Something has to be moving, or a slow model is indistinguishable from a
+   crashed one. */
+.askstate.working { color: var(--accent); }
+.askstate.working::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: askpulse 1s ease-in-out infinite;
+  vertical-align: baseline;
+}
+@keyframes askpulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .askstate.working::after { animation: none; } }
+
+.askmodel { margin: 8px 0 0; }
+.extoffline.hidden { display: none; }
+.extpanel .lab { display: block; margin-top: 4px; }
