@@ -669,6 +669,31 @@ The ask box only appears when a model actually answers — the health check prob
 the endpoint rather than reporting itself well because the route exists, since a
 button that fails when pressed is worse than no button.
 
+### A shell has to be gone before it wraps
+
+Emanation releases concentric shells from the centre and carries them out; when
+one reaches the end of its journey it starts again from the middle. Its
+brightness was `sin(uπ)`, which is symmetric — and therefore still at **19% at
+94% of the way out, and 6% at 98%**. So a plainly visible ring of light reached
+the rim and snapped back to the centre. That is what read as a jerk.
+
+The curve now rises quickly, so a shell is still born at the centre, and reaches
+zero at 93% of the journey — dark for the last stretch, so there is nothing left
+to see when it wraps. The cost is that the figure does not reach quite as far.
+
+Worth recording how nearly this was missed: sampling frames at sixty times speed
+made *every* version look steppy, because each frame advanced the phase by 2% of
+the cycle. The bug only became clear by evaluating the curve itself rather than
+watching it.
+
+### The solid and the star, together
+
+A Platonic solid at each node used to *replace* the marker, which threw away the
+best thing in the piece to show the second best. The star now sits inside the
+solid and travels out with it, and the solid has its own size, transparency and
+glow so it can be a lantern around the light rather than a lid over it. Size at
+zero hides the star if you want only the solid.
+
 ## Stars
 
 The node markers turned out to be the best thing in the piece — a hard core with

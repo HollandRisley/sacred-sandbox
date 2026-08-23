@@ -342,7 +342,11 @@ const SPEC = [
       { key: 'nodeLook', label: 'Surface', min: 0, max: 2, step: 1, read: (v) => ['Stars — edgeless light', 'Pearl — translucent bubble', 'Matter — solid, sorts correctly'][v] },
       { key: 'nodeGlowSpread', label: 'Star spread', min: 0.3, max: 3, step: 0.01, when: (s) => Math.round(s.nodeLook) === 0 },
       { key: 'nodeSolid', label: 'Solid at each node', min: 0, max: 5, step: 1, read: (v) => SOLIDS[v].name },
-      { key: 'nodeSolidSize', label: 'Solid size', min: 0.1, max: 1.5, step: 0.01, when: (s) => Math.round(s.nodeSolid) > 0 },
+      // A wider range than before, and its own glow and transparency, so the
+      // star can be seen inside the solid rather than replaced by it.
+      { key: 'nodeSolidSize', label: 'Solid size', min: 0.05, max: 3, step: 0.01, when: (s) => Math.round(s.nodeSolid) > 0 },
+      { key: 'nodeSolidFade', label: 'Solid transparency', min: 0.05, max: 1, step: 0.01, when: (s) => Math.round(s.nodeSolid) > 0, read: (v) => (v > 0.98 ? 'opaque' : `${Math.round(v * 100)}%`) },
+      { key: 'nodeSolidGlow', label: 'Solid glow', min: 0, max: 2.5, step: 0.01, when: (s) => Math.round(s.nodeSolid) > 0 },
       { key: 'nodeSolidSpin', label: 'Solid spin', min: -1, max: 1, step: 0.01, when: (s) => Math.round(s.nodeSolid) > 0 },
     ],
   },

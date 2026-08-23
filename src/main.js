@@ -673,7 +673,10 @@ function applyLook() {
   // scene rather than the material — so it has to be driven from here too.
   scene.environmentIntensity = 1.4 + state.sheen * 1.5;
   nodeSolids.material.iridescence = Math.min(state.sheen, 1);
-  nodeSolids.material.envMapIntensity = 1.2 + state.sheen * 1.4;
+  nodeSolids.material.envMapIntensity = (1.2 + state.sheen * 1.4) * state.nodeSolidGlow;
+  // Transparent enough to see the star inside it, which is the point of keeping
+  // both. depthWrite stays off so the shells behind show through as well.
+  nodeSolids.material.opacity = state.nodeSolidFade;
   solidFaces.material.color.copy(_pearlTint2.copy(layer.solid).lerp(WHITE, wash));
   solidFaces.material.opacity = state.solidFaces;
   solidFaces.visible = state.solidFaces > 0.004;
@@ -699,6 +702,24 @@ function shellPhase(index, count) {
   const inward = index < Math.round(count * state.contract);
   const u = frac(clock * state.emanate + index / count);
   return inward ? 1 - u : u;
+}
+
+/**
+ * How bright a shell is at `u` along its journey.
+ *
+ * This was `sin(uπ)`, which is symmetric and therefore still at 3–5% when the
+ * shell reaches the rim and wraps back to the centre. Measured: the outermost
+ * visible ring jumped from radius 2.35 to 2.03 in a single frame while forty
+ * markers were still above the threshold of perception. That is the jerk — a
+ * whole shell ceasing to exist at full extent rather than fading out.
+ *
+ * It now rises quickly, so a shell is still *born at the centre*, and reaches
+ * zero at three-quarters of the way out — well before the wrap, so what
+ * disappears is already invisible. The cost is that the figure does not reach
+ * quite as far, which is what `Reach` is for.
+ */
+function shellFadeAt(u) {
+  return smoothstep(0, 0.14, u) * (1 - smoothstep(0.72, 0.94, u));
 }
 
 // ---------------------------------------------------------------- lattice
@@ -859,8 +880,8 @@ function rebuildLattice() {
       if (shells > 0) {
         const u = shellPhase(sh, shellCount);
         shellScale = 0.12 + u * 0.98;
-        shellFade = Math.sin(u * Math.PI);
-        if (shellFade < 0.01) continue;
+        shellFade = shellFadeAt(u);
+        if (shellFade < 0.002) continue;
       }
       for (let i = 0; i < joinActive; i++) {
         if (slot >= nodePool.length) break;
@@ -889,8 +910,8 @@ function rebuildLattice() {
     if (shells > 0) {
       const u = shellPhase(s, shellCount);
       shellScale = 0.12 + u * 0.98;
-      shellFade = Math.sin(u * Math.PI);       // born at the centre, dies at the rim
-      if (shellFade < 0.01) continue;
+      shellFade = shellFadeAt(u);              // born at the centre, gone before the rim
+      if (shellFade < 0.002) continue;
     }
 
     // Echoes rotate the flat figure inside the lattice's own 60° symmetry, so
@@ -1040,7 +1061,10 @@ function paintLattice() {
   ringHalo.set(haloList);
   // Glow (0) is a billboard field; Pearl (1) and Matter (2) are the sphere mesh.
   const nodeLook = Math.round(state.nodeLook);
-  const nodesToMesh = Math.round(state.nodeSolid) > 0 ? [] : nodeList;
+  // The markers used to be suppressed entirely when a solid sat at each node,
+  // which threw away the best thing in the piece to show the second best. They
+  // now sit inside the solid and travel out with it; Size at zero hides them.
+  const nodesToMesh = nodeList;
   if (nodeLook === 0) {
     nodeSpheres.set([]);
     if (nodesToMesh.length) {

@@ -39,6 +39,8 @@ export const state = {
   nodeSolid: 0,           // a Platonic solid at each node (0 = off)
   nodeSolidSize: 0.5,
   nodeSolidSpin: 0.25,
+  nodeSolidFade: 0.55,   // how solid the solid is; low enough to see the star inside
+  nodeSolidGlow: 1,      // how hard it catches the light
   stage: 8,
   extent: 2,
   echoes: 1,
