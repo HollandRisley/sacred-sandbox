@@ -5,7 +5,7 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 
-import { state } from './state.js';
+import { state, WIDE } from './state.js';
 import { buildUI, HEAVY_KEYS } from './ui.js';
 import {
   RingField, SphereField, pearlMaterial, matterMaterial, emberMaterial,
@@ -33,6 +33,7 @@ import { loadSpriteFolder, resolveSprites, spriteTexture } from './lib/sprites.j
 import { metatronSpiral, HEXAGONS } from './geometry/metatronSpiral.js';
 import { PrismHalo } from './lib/prism.js';
 import { saveSetup, loadSetup, clearSetup, applySetup, describeSetup } from './lib/storage.js';
+import { shareLink, takeIncomingLink } from './lib/share.js';
 
 const smoothstep = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a || 1e-6)));
@@ -2233,7 +2234,7 @@ function reframe(w, h) {
   const open = document.body.classList.contains('panel-open');
   camera.zoom = 1;
   if (!open) { camera.clearViewOffset(); return; }
-  if (w < 820) {
+  if (w < WIDE) {
     camera.setViewOffset(w, h, 0, h * 0.2, w, h);
     camera.zoom = 0.72;
   } else {
@@ -2305,6 +2306,19 @@ async function boot() {
     },
     clear: () => { clearSetup(); return 'cleared'; },
     status: () => describeSetup(loadSetup()),
+    share: async () => {
+      const url = await shareLink(state, camera, controls);
+      if (!url) return 'this browser cannot build a link';
+      try {
+        await navigator.clipboard.writeText(url);
+        return `link copied — ${url.length} characters`;
+      } catch {
+        // Clipboard access needs a secure context and a user gesture, and is
+        // refused often enough that failing here should not lose the link.
+        console.info('Share link:', url);
+        return 'clipboard refused — the link is in the console';
+      }
+    },
   });
   loadEl = document.getElementById('load');
   solidInfoEl = document.getElementById('solidinfo');
@@ -2314,9 +2328,11 @@ async function boot() {
   // library live, so the images simply appear the moment they arrive.
   loadSpriteFolder().then(() => ui.refresh());
 
-  // A saved setup is the piece the way its author last left it, so it wins over
-  // the defaults on load.
-  const saved = loadSetup();
+  // A link beats a save, and a save beats the defaults. Someone who followed a
+  // link came to see that particular position, so it should not be quietly
+  // replaced by whatever they last saved on this device.
+  const shared = await takeIncomingLink();
+  const saved = shared || loadSetup();
   if (saved) {
     applySetup(saved, state, camera, controls);
     ui.refresh();
@@ -2410,7 +2426,7 @@ async function boot() {
   };
 
   document.body.classList.remove('loading');
-  if (window.innerWidth > 820) document.body.classList.add('panel-open');
+  if (window.innerWidth > WIDE) document.body.classList.add('panel-open');
   resize();
   return ui;
 }

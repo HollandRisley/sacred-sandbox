@@ -513,6 +513,7 @@ export function buildUI(onChange, onLayout, store) {
   saved.className = 'group';
   saved.innerHTML = `<div class="ghead"><h2>Your setup</h2>
       <div class="gacts">
+        <button type="button" data-store="share">share</button>
         <button type="button" data-store="save">save</button>
         <button type="button" data-store="restore">restore</button>
         <button type="button" data-store="clear">clear</button>
@@ -523,8 +524,10 @@ export function buildUI(onChange, onLayout, store) {
   const storeStatus = saved.querySelector('#storestatus');
   storeStatus.textContent = store.status();
   for (const btn of saved.querySelectorAll('[data-store]')) {
-    btn.addEventListener('click', () => {
-      storeStatus.textContent = store[btn.dataset.store]();
+    btn.addEventListener('click', async () => {
+      // Share has to await the compressor; the others are synchronous. Awaiting
+      // both keeps one code path.
+      storeStatus.textContent = await store[btn.dataset.store]();
     });
   }
 

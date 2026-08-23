@@ -170,6 +170,39 @@ export const state = {
   autoRotate: false,
 };
 
+/**
+ * The opening state, frozen at module load before anything can touch it.
+ *
+ * Two things need it. Loading a saved setup has to *reset* first rather than
+ * merge — otherwise whatever you were fiddling with survives underneath the
+ * thing you just loaded — and a shared link only carries the keys that differ
+ * from here, which is what keeps it short and what lets it survive a build that
+ * adds or removes parameters.
+ */
+export const DEFAULTS = Object.freeze({ ...state });
+
+/** Put every parameter back to its opening value, in place. */
+export function resetState(target = state) {
+  for (const k of Object.keys(DEFAULTS)) target[k] = DEFAULTS[k];
+  return target;
+}
+
+/** Only what differs from the opening state — the payload a link carries. */
+export function stateDiff(target = state) {
+  const out = {};
+  for (const k of Object.keys(DEFAULTS)) {
+    if (target[k] !== DEFAULTS[k]) out[k] = target[k];
+  }
+  return out;
+}
+
+/**
+ * The layout breakpoint, in one place. It decides the panel's shape in CSS and
+ * the camera's view offset in main.js, and those two must never disagree — a
+ * panel that has moved while the art has not is a visible seam.
+ */
+export const WIDE = 820;
+
 const only = (...keys) => {
   const off = {
     showRings: false, showNodes: false, showJoins: false, showSolid: false,

@@ -1,3 +1,5 @@
+import { resetState } from '../state.js';
+
 const KEY = 'sacred-sandbox:setup:v1';
 
 /**
@@ -46,9 +48,15 @@ export function clearSetup() {
 /**
  * Apply a saved payload. Only keys the current build still recognises are
  * copied across, so an old save cannot inject parameters that no longer exist.
+ *
+ * Reset first, then apply. Merging onto whatever was on screen meant anything
+ * the save did not mention survived underneath it — load a spare setup over a
+ * busy one and you kept the busy one's leftovers, which reads as the save being
+ * wrong rather than as two setups being mixed.
  */
 export function applySetup(data, state, camera, controls) {
   if (!data) return false;
+  resetState(state);
   for (const k of Object.keys(state)) {
     if (Object.prototype.hasOwnProperty.call(data.state, k)) state[k] = data.state[k];
   }
