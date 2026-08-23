@@ -203,6 +203,17 @@ export function stateDiff(target = state) {
  */
 export const WIDE = 820;
 
+/**
+ * A phone turned sideways. Matched in JavaScript rather than in the stylesheet
+ * so there is one copy of it: `main.js` puts `body.landscape` on when it holds,
+ * the stylesheet keys off that class, and `reframe` reads the same flag. A
+ * media query in the CSS as well would be a second definition to drift.
+ *
+ * The height bound is what keeps it to phones: an iPhone on its side is 402
+ * points tall, an iPad is 768.
+ */
+export const LANDSCAPE = '(orientation: landscape) and (max-height: 600px)';
+
 const only = (...keys) => {
   const off = {
     showRings: false, showNodes: false, showJoins: false, showSolid: false,

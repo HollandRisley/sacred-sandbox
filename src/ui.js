@@ -411,6 +411,62 @@ export function buildUI(onChange, onLayout, store) {
   // clicked, by which point every group exists.
   const groupByOwner = new Map();
 
+  /**
+   * THE RAIL
+   *
+   * Turned sideways, a phone has about 400 points of height and the panel gets
+   * half the width. A single scrolling column of fifteen accordions in that
+   * space is mostly headings. So the sections are split in two: a narrow rail
+   * of names on the left, and one section's controls on the right.
+   *
+   * It is the same DOM either way. Every section goes into `sectionsEl`, which
+   * is `display: contents` everywhere except landscape — so on a desktop and in
+   * portrait the sections behave exactly as they did, as direct children of the
+   * panel, and the wrapper is not there at all as far as layout is concerned.
+   */
+  const railEl = document.createElement('nav');
+  railEl.id = 'rail';
+  const sectionsEl = document.createElement('div');
+  sectionsEl.id = 'sections';
+  panel.append(railEl, sectionsEl);
+
+  const sections = [];
+  let active = 0;
+
+  const selectSection = (i) => {
+    if (i < 0 || i >= sections.length) return;
+    active = i;
+    sections.forEach((sec, n) => {
+      sec.el.classList.toggle('active', n === i);
+      sec.tab.classList.toggle('on', n === i);
+    });
+  };
+
+  /** Register a section and give it a tab on the rail. */
+  const addSection = (el, label, when) => {
+    const index = sections.length;
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'tab';
+    tab.textContent = label;
+    tab.addEventListener('click', () => selectSection(index));
+    railEl.appendChild(tab);
+    sectionsEl.appendChild(el);
+    const sec = { el, tab, when };
+    sections.push(sec);
+    // A section whose layer is switched off has nothing to control, so its tab
+    // goes with it rather than leading to an empty pane.
+    if (when) {
+      bindings.push(() => {
+        const shown = when(state);
+        tab.classList.toggle('hidden', !shown);
+        // Never leave the pane pointing at a tab that has just vanished.
+        if (!shown && sections[active] === sec) selectSection(0);
+      });
+    }
+    return index;
+  };
+
   // ---- visibility chips, first and always
   const vis = document.createElement('section');
   vis.className = 'group vis';
@@ -447,6 +503,10 @@ export function buildUI(onChange, onLayout, store) {
         const g = groupByOwner.get(key);
         if (g) {
           g.classList.add('open');
+          // Both layouts, and each ignores the other's half: the accordion
+          // opens and scrolls in a single column, the rail selects in three.
+          const i = sections.findIndex((sec) => sec.el === g);
+          if (i >= 0) selectSection(i);
           requestAnimationFrame(() => g.scrollIntoView({ behavior: 'smooth', block: 'start' }));
         }
       }
@@ -454,7 +514,7 @@ export function buildUI(onChange, onLayout, store) {
     bindings.push(() => b.classList.toggle('on', state[key]));
     chips.appendChild(b);
   }
-  panel.appendChild(vis);
+  addSection(vis, 'Visible');
 
   for (const group of SPEC) {
     const g = document.createElement('section');
@@ -505,7 +565,7 @@ export function buildUI(onChange, onLayout, store) {
       body.appendChild(row);
     }
     if (group.after) body.insertAdjacentHTML('beforeend', group.after);
-    panel.appendChild(g);
+    addSection(g, group.title, group.when);
   }
 
   // ---- saved setup
@@ -519,7 +579,7 @@ export function buildUI(onChange, onLayout, store) {
         <button type="button" data-store="clear">clear</button>
       </div></div>
     <p class="note" id="storestatus"></p>`;
-  panel.appendChild(saved);
+  addSection(saved, 'Setup');
 
   const storeStatus = saved.querySelector('#storestatus');
   storeStatus.textContent = store.status();
@@ -541,7 +601,7 @@ export function buildUI(onChange, onLayout, store) {
     </div>
     <p class="reply" id="reply">Try: installation · chakra · toroid · merkaba · fibonacci · singularity · mandala · images · flow · still</p>
     <p class="load" id="load"></p>`;
-  panel.appendChild(ai);
+  addSection(ai, 'Ask');
 
   const run = () => {
     const box = document.getElementById('ask');
@@ -568,5 +628,6 @@ export function buildUI(onChange, onLayout, store) {
   });
 
   refresh();
-  return { refresh };
+  selectSection(0);
+  return { refresh, selectSection };
 }

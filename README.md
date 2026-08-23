@@ -534,10 +534,45 @@ so an old save cannot inject parameters that no longer exist. Camera *zoom* is
 deliberately not stored: the layout code owns it, shrinking the view when the
 panel is open, so a restored value would just be overwritten.
 
+## Sharing a position
+
+Every position is a link. The fragment carries only what differs from the
+opening state, deflated and base64url'd — 138 to 328 characters for a real
+composition, against about 1,350 if all 124 parameters were packed. The diff is
+also what makes a link survive the build changing under it: a parameter added
+later is simply absent and falls back to its default, and one removed is ignored
+on the way in.
+
+It rides in the fragment, which browsers never send to the host, so the origin
+never sees what you made. Camera and target travel with it — an artwork here is
+the settings and the angle together.
+
+Your own uploaded pictures do not travel. An `emImage` naming a `mine:` id means
+nothing to whoever opens the link, so the field is dropped and their copy falls
+back to the shipped glyphs. Sending the picture would make this an image host.
+
+A link is untrusted input. Decoding keeps only keys this build knows, only where
+the type matches, and rejects non-finite numbers; anything unreadable returns
+null rather than throwing, because a truncated paste is the normal case.
+
 ## Controls
 
 **Visible** sits at the top and is sticky: nine chips, one per element. That is
 the first thing to reach for — most compositions are about what you turn *off*.
+
+Turned sideways, a phone gets three columns: the artwork, a rail of section
+names, and that section's controls. A single scrolling column of fifteen
+accordions in 400 points of height is mostly headings; the rail moves the
+headings out of the way so the sliders get the full height of the screen.
+
+It is the same DOM in both layouts. Every section lives in a wrapper that is
+`display: contents` everywhere except landscape — so on a desktop and in
+portrait the sections are still direct children of the panel and behave exactly
+as they did, and the wrapper is not there as far as layout is concerned. The
+landscape query is matched in JavaScript rather than in the stylesheet, and sets
+a class: one definition drives both the panel's shape and the camera's view
+offset, which is what keeps them from disagreeing about where the edge between
+them is.
 
 On a phone the readout shrinks to a 15px label and the description goes behind
 the ⓘ beside it, taking the header from about 97px to 24px. A caption a quarter

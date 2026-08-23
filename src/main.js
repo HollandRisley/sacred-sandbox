@@ -5,7 +5,7 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 
-import { state, WIDE } from './state.js';
+import { state, WIDE, LANDSCAPE } from './state.js';
 import { buildUI, HEAVY_KEYS } from './ui.js';
 import {
   RingField, SphereField, pearlMaterial, matterMaterial, emberMaterial,
@@ -2234,7 +2234,14 @@ function reframe(w, h) {
   const open = document.body.classList.contains('panel-open');
   camera.zoom = 1;
   if (!open) { camera.clearViewOffset(); return; }
-  if (w < WIDE) {
+
+  // The offset shifts the rendered window sideways so the figure sits in the
+  // space the panel is not covering. Half the panel's width is the amount that
+  // centres it in what is left.
+  if (document.body.classList.contains('landscape')) {
+    camera.setViewOffset(w, h, w * 0.25, 0, w, h);
+    camera.zoom = 0.85;
+  } else if (w < WIDE) {
     camera.setViewOffset(w, h, 0, h * 0.2, w, h);
     camera.zoom = 0.72;
   } else {
@@ -2389,6 +2396,18 @@ async function boot() {
    *    window event nor the observer fires, yet `innerHeight` — which this
    *    reads — has moved.
    */
+  // A phone turned sideways gets the three-column layout. Matched here rather
+  // than in the stylesheet so the query exists once: the class drives the CSS
+  // and `reframe` reads the same flag, which is what keeps the panel and the
+  // artwork from disagreeing about where the edge between them is.
+  const sideways = window.matchMedia(LANDSCAPE);
+  const applyOrientation = () => {
+    document.body.classList.toggle('landscape', sideways.matches);
+    resize();
+  };
+  sideways.addEventListener('change', applyOrientation);
+  applyOrientation();
+
   const surface = new ResizeObserver(() => resize());
   surface.observe(renderer.domElement);
   if (window.visualViewport) {
@@ -2426,7 +2445,10 @@ async function boot() {
   };
 
   document.body.classList.remove('loading');
-  if (window.innerWidth > WIDE) document.body.classList.add('panel-open');
+  // Open by default where there is room beside the artwork — a wide window, or
+  // a phone held sideways, which is the whole point of turning it. Portrait
+  // stays closed: there the panel is a sheet over the piece, not beside it.
+  if (window.innerWidth > WIDE || sideways.matches) document.body.classList.add('panel-open');
   resize();
   return ui;
 }

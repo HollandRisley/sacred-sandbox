@@ -577,3 +577,116 @@ body.in-xr #hint { display: none; }
 .spritenote { margin: 6px 0 0; }
 
 #ask { -webkit-user-select: text; user-select: text; }
+
+/* ---- the rail: three columns on a phone turned sideways ------------------ */
+
+/* Everywhere but landscape the wrapper is not there as far as layout goes, so
+   the sections stay direct children of the panel and behave exactly as before. */
+#sections { display: contents; }
+#rail { display: none; }
+
+body.landscape #panel {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  width: 50vw;
+  max-height: none;
+  border-radius: 0;
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  overflow: hidden;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  grid-template-rows: 100%;
+  transform: translateX(100%);
+  transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+}
+body.landscape.panel-open #panel { transform: translateX(0); }
+
+/* The brand block is a luxury at 400 points of height. */
+body.landscape .brand { display: none; }
+
+body.landscape #rail {
+  display: block;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-right: 1px solid var(--line);
+  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+}
+body.landscape #sections {
+  display: block;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px var(--pad) max(14px, env(safe-area-inset-bottom));
+}
+
+/* One section at a time. The rail is the heading, so the accordion's own
+   header would only repeat it — and every row of height matters here. */
+body.landscape #sections > .group { display: none; margin: 0; }
+body.landscape #sections > .group.active { display: block; }
+body.landscape #sections > .group.hidden { display: none; }
+body.landscape .acch { display: none; }
+body.landscape .group { border-bottom: none; }
+/* The rail replaces the accordion here, so the body must not stay collapsed
+   behind an `.open` class that nothing in this layout can toggle any more —
+   selecting a section on the rail is what opens it. */
+body.landscape #sections > .group.acc:not(.open) .gbody { display: block; }
+body.landscape #sections > .group.acc:not(.open) { padding-bottom: 0; }
+
+.tab {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border: none;
+  border-left: 2px solid transparent;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  cursor: pointer;
+}
+.tab.hidden { display: none; }
+.tab.on {
+  color: var(--ink);
+  border-left-color: var(--accent);
+  background: rgba(127, 216, 255, 0.1);
+}
+
+/* Sideways there is room for the chips to be two to a row rather than five. */
+body.landscape .chips { gap: 5px; }
+body.landscape .chip { flex: 1 1 44%; min-height: 30px; padding: 5px 8px; font-size: 11px; }
+body.landscape .row { margin-bottom: 10px; }
+body.landscape input[type=range] { height: 36px; }
+body.landscape .note { margin-bottom: 8px; }
+
+/* The toggle belongs over the artwork, not over the rail it would cover. Held
+   just clear of the panel edge rather than the window edge. */
+body.landscape #toggle {
+  right: calc(50vw + 12px);
+  top: max(10px, env(safe-area-inset-top));
+  width: 40px;
+  height: 40px;
+}
+body.landscape.panel-open #toggle { right: calc(50vw + 12px); }
+body.landscape #hint { display: none; }
+
+/* Sideways the artwork gets half the width, so the caption has to give way for
+   the same reason it does in portrait — it is competing with the piece. */
+body.landscape #readout { max-width: calc(50vw - 76px); }
+body.landscape .r-title { font-size: 15px; letter-spacing: 0.02em; margin-bottom: 0; }
+body.landscape #rinfo { display: grid; place-items: center; }
+body.landscape .r-blurb {
+  font-size: 11.5px;
+  line-height: 1.45;
+  margin-top: 0;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+body.landscape.info-open .r-blurb { max-height: 46vh; opacity: 1; margin-top: 6px; }
