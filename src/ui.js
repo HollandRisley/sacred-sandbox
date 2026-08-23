@@ -292,12 +292,9 @@ const SPEC = [
   {
     title: 'Time',
     open: true,
-    note: 'One clock drives everything. The centre emanates; some streams run back inward.',
+    note: 'One clock. Every motion in the piece is a multiple of it, including a hard stop at zero. What each layer does with that clock lives with the layer.',
     controls: [
       { key: 'time', label: 'Time', min: 0, max: 3, step: 0.01, read: (v) => (v < 0.005 ? 'still' : `${v.toFixed(2)}×`) },
-      { key: 'shells', label: 'Emanation', min: 0, max: 6, step: 1, read: (v) => (v === 0 ? 'still figure' : `${v} shells`) },
-      { key: 'emanate', label: 'Outward rate', min: 0, max: 0.4, step: 0.005 },
-      { key: 'contract', label: 'Inward streams', min: 0, max: 1, step: 0.01, read: (v) => `${Math.round(v * 100)}%` },
     ],
   },
   {
@@ -306,6 +303,7 @@ const SPEC = [
     // The lattice underpins the joins, the core and Fibonacci's extent as well
     // as the circles themselves, so it stays while any of those are showing.
     when: (s) => s.showRings || s.showNodes || s.showJoins,
+    note: 'The figure itself, and how it is released from the centre.',
     controls: [
       { key: 'wrap', label: 'Sphere wrap', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'flat plane' : v > 0.995 ? 'wrapped' : v.toFixed(2)) },
       { key: 'wrapSpread', label: 'Coverage', min: 0.5, max: 4, step: 0.01, when: (s) => s.wrap > 0.005, read: (v) => `${Math.round((1 - (1 - v * v) / (1 + v * v)) / 2 * 100)}% of the sphere` },
@@ -313,21 +311,38 @@ const SPEC = [
       { key: 'extent', label: 'Lattice', min: 2, max: 4, step: 1, read: (v) => `${CIRCLE_COUNT[v]} circles` },
       { key: 'echoes', label: 'Echoes', min: 1, max: 6, step: 1, read: (v) => (v === 1 ? 'single' : `${v}-fold moiré`) },
       { key: 'layers', label: '3D depth', min: 0, max: 3, step: 1, read: (v) => (v === 0 ? 'flat' : `${v * 2 + 1} layers`) },
-      { key: 'nodeSize', label: 'Node spheres', min: 0, max: 0.55, step: 0.005 },
-      // Thins the markers without touching the circles, so density and
-      // structure are separate decisions.
-      { key: 'nodeDensity', label: 'Node density', min: 0.02, max: 1, step: 0.01, read: (v) => (v > 0.995 ? 'every node' : `${Math.round(v * 100)}% of nodes`) },
-      // Glow is a billboard, so it has no silhouette and no highlight — which is
-      // the difference between reading as energy and reading as a bubble.
-      { key: 'nodeLook', label: 'Node surface', min: 0, max: 2, step: 1, read: (v) => ['Glow — edgeless light', 'Pearl — translucent bubble', 'Matter — solid, sorts correctly'][v] },
-      { key: 'nodeGlowSpread', label: 'Glow spread', min: 0.3, max: 3, step: 0.01, when: (s) => Math.round(s.nodeLook) === 0 },
+      // These three drive this figure and nothing else, which is why they sit
+      // here rather than under Time: Emanation and Inward streams touch only
+      // the lattice, and the rate additionally sets the phase of Metatron's
+      // breath and the emitter's spin.
+      { key: 'shells', label: 'Emanation', min: 0, max: 6, step: 1, read: (v) => (v === 0 ? 'still figure' : `${v} shells`) },
+      { key: 'emanate', label: 'Outward rate', min: 0, max: 0.4, step: 0.005 },
+      { key: 'contract', label: 'Inward streams', min: 0, max: 1, step: 0.01, read: (v) => `${Math.round(v * 100)}%` },
       { key: 'mapToMetatron', label: 'Map onto Metatron', type: 'toggle' },
-      { key: 'nodeSolid', label: 'Solid at each node', min: 0, max: 5, step: 1, read: (v) => SOLIDS[v].name },
-      { key: 'nodeSolidSize', label: 'Node solid size', min: 0.1, max: 1.5, step: 0.01 },
-      { key: 'nodeSolidSpin', label: 'Node solid spin', min: -1, max: 1, step: 0.01 },
       { key: 'radius', label: 'Scale', min: 0.5, max: 1.6, step: 0.01 },
       { key: 'spin', label: 'Spin', min: -0.6, max: 0.6, step: 0.01 },
       colourOf('hueRings'),
+    ],
+  },
+  {
+    // Its own section, because it is its own thing — and because a chip with no
+    // section of its own had nowhere to live once the rail replaced the chips.
+    title: 'Nodes',
+    owner: 'showNodes',
+    when: (s) => s.showNodes,
+    note: 'A marker at every point of the lattice. As stars they are points of light; as pearl or matter they are objects.',
+    controls: [
+      { key: 'nodeSize', label: 'Size', min: 0, max: 0.55, step: 0.005 },
+      // Thins the markers without touching the circles, so density and
+      // structure are separate decisions.
+      { key: 'nodeDensity', label: 'Density', min: 0.02, max: 1, step: 0.01, read: (v) => (v > 0.995 ? 'every node' : `${Math.round(v * 100)}% of nodes`) },
+      // Glow is a billboard, so it has no silhouette and no highlight — which is
+      // the difference between reading as energy and reading as a bubble.
+      { key: 'nodeLook', label: 'Surface', min: 0, max: 2, step: 1, read: (v) => ['Stars — edgeless light', 'Pearl — translucent bubble', 'Matter — solid, sorts correctly'][v] },
+      { key: 'nodeGlowSpread', label: 'Star spread', min: 0.3, max: 3, step: 0.01, when: (s) => Math.round(s.nodeLook) === 0 },
+      { key: 'nodeSolid', label: 'Solid at each node', min: 0, max: 5, step: 1, read: (v) => SOLIDS[v].name },
+      { key: 'nodeSolidSize', label: 'Solid size', min: 0.1, max: 1.5, step: 0.01, when: (s) => Math.round(s.nodeSolid) > 0 },
+      { key: 'nodeSolidSpin', label: 'Solid spin', min: -1, max: 1, step: 0.01, when: (s) => Math.round(s.nodeSolid) > 0 },
     ],
   },
   {
@@ -601,6 +616,64 @@ export function buildUI(onChange, onLayout, store) {
    * portrait the sections behave exactly as they did, as direct children of the
    * panel, and the wrapper is not there at all as far as layout is concerned.
    */
+  /**
+   * DRAGGABLE EDGES
+   *
+   * Two handles: one between the artwork and the panel, one between the rail
+   * and the controls. Both write a CSS custom property and remember it, because
+   * how much room the piece gets against how much the controls get is a
+   * preference, not a default — someone building a composition wants the panel
+   * wide, someone watching one wants it narrow.
+   *
+   * Pointer events rather than mouse, so it works with a finger; capture, so a
+   * fast drag that leaves the handle keeps dragging rather than sticking.
+   */
+  const GRIP_KEY = 'sacred-sandbox:layout:v1';
+  const layout = (() => {
+    try {
+      return JSON.parse(localStorage.getItem(GRIP_KEY)) || {};
+    } catch { return {}; }
+  })();
+
+  const applyLayout = () => {
+    const root = document.documentElement;
+    if (layout.panel) root.style.setProperty('--panel-w', `${layout.panel}px`);
+    if (layout.rail) root.style.setProperty('--rail-w', `${layout.rail}px`);
+  };
+  const rememberLayout = () => {
+    try { localStorage.setItem(GRIP_KEY, JSON.stringify(layout)); } catch { /* private mode */ }
+  };
+  applyLayout();
+
+  const addGrip = (cls, read) => {
+    const grip = document.createElement('div');
+    grip.className = `grip ${cls}`;
+    grip.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      grip.setPointerCapture(e.pointerId);
+      grip.classList.add('dragging');
+      const move = (ev) => {
+        read(ev.clientX);
+        applyLayout();
+        onLayout();
+      };
+      const up = () => {
+        grip.classList.remove('dragging');
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', up);
+        rememberLayout();
+      };
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', up);
+    });
+    return grip;
+  };
+
+  // Clamped so neither column can be dragged away entirely and left unrecoverable.
+  panel.appendChild(addGrip('grip-panel', (x) => {
+    layout.panel = Math.max(240, Math.min(window.innerWidth - 220, window.innerWidth - x));
+  }));
+
   const railEl = document.createElement('nav');
   railEl.id = 'rail';
   railEl.innerHTML = `<div class="railhead">
@@ -608,7 +681,11 @@ export function buildUI(onChange, onLayout, store) {
     </div>`;
   const sectionsEl = document.createElement('div');
   sectionsEl.id = 'sections';
-  panel.append(railEl, sectionsEl);
+  const railGrip = addGrip('grip-rail', (x) => {
+    const left = panel.getBoundingClientRect().left;
+    layout.rail = Math.max(72, Math.min(280, x - left));
+  });
+  panel.append(railEl, railGrip, sectionsEl);
 
   const sections = [];
   let active = 0;
@@ -663,9 +740,14 @@ export function buildUI(onChange, onLayout, store) {
       eye.title = `Show or hide ${label}`;
       eye.addEventListener('click', (e) => {
         e.stopPropagation();
-        state[owner] = !state[owner];
+        const on = !state[owner];
+        state[owner] = on;
         refresh();
         onChange(owner);
+        // Switching something on is usually the first half of wanting to adjust
+        // it, so the pane follows. Switching off does not navigate, because
+        // that would take you away from whatever you were in the middle of.
+        if (on) selectSection(index);
       });
       row.appendChild(eye);
     }

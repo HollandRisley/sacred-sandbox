@@ -590,7 +590,7 @@ body.landscape #panel {
   right: 0;
   bottom: 0;
   left: auto;
-  width: 50vw;
+  width: var(--panel-w);
   max-height: none;
   border-radius: 0;
   border-right: none;
@@ -599,7 +599,7 @@ body.landscape #panel {
   overflow: hidden;
   padding: 0;
   display: grid;
-  grid-template-columns: 108px 1fr;
+  grid-template-columns: var(--rail-w) 1fr;
   grid-template-rows: 100%;
   transform: translateX(100%);
   transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
@@ -932,3 +932,41 @@ body.landscape .gallery { grid-template-columns: repeat(auto-fill, minmax(96px, 
   cursor: pointer;
 }
 .askgo:disabled { opacity: 0.45; cursor: default; }
+
+/* ---- draggable edges ---------------------------------------------------- */
+
+:root { --panel-w: 50vw; --rail-w: 108px; }
+
+.grip { display: none; }
+
+body.landscape .grip {
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  z-index: 25;
+  cursor: col-resize;
+  touch-action: none;         /* the grip owns the gesture, not the scroller */
+}
+body.landscape .grip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+body.landscape .grip:hover::after,
+body.landscape .grip.dragging::after { background: rgba(127, 216, 255, 0.55); }
+
+body.landscape .grip-panel { left: -5px; }
+body.landscape .grip-rail { left: calc(var(--rail-w) - 5px); }
+
+/* The panel and its rail both take their width from the dragged values. */
+body.landscape #panel {
+  width: var(--panel-w);
+  grid-template-columns: var(--rail-w) 1fr;
+}

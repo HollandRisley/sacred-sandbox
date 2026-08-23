@@ -227,6 +227,13 @@ export const WIDE = 820;
  * The height bound is what keeps it to phones: an iPhone on its side is 402
  * points tall, an iPad is 768.
  */
+/**
+ * The rail layout — a column of layer names beside one section's controls —
+ * used on a phone held sideways and on anything wide enough to have the room.
+ * Portrait keeps the bottom sheet, where there is no width to give a rail.
+ */
+export const RAIL = '(orientation: landscape) and (max-height: 600px), (min-width: 820px)';
+
 export const LANDSCAPE = '(orientation: landscape) and (max-height: 600px)';
 
 const only = (...keys) => {

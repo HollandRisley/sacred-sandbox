@@ -5,7 +5,7 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 
-import { state, WIDE, LANDSCAPE } from './state.js';
+import { state, WIDE, RAIL } from './state.js';
 import { buildUI, HEAVY_KEYS } from './ui.js';
 import {
   RingField, SphereField, pearlMaterial, matterMaterial, emberMaterial,
@@ -2490,8 +2490,12 @@ function reframe(w, h) {
   // space the panel is not covering. Half the panel's width is the amount that
   // centres it in what is left.
   if (document.body.classList.contains('landscape')) {
-    camera.setViewOffset(w, h, w * 0.25, 0, w, h);
-    camera.zoom = 0.85;
+    // Half the panel's own width, since the panel can now be dragged wider or
+    // narrower and a fixed fraction would put the figure off centre.
+    const panel = document.getElementById('panel');
+    const pw = panel ? panel.getBoundingClientRect().width : w * 0.5;
+    camera.setViewOffset(w, h, pw * 0.5, 0, w, h);
+    camera.zoom = Math.max(0.6, Math.min(1, 1 - (pw / w) * 0.35));
   } else if (w < WIDE) {
     camera.setViewOffset(w, h, 0, h * 0.2, w, h);
     camera.zoom = 0.72;
@@ -2663,7 +2667,7 @@ async function boot() {
   // than in the stylesheet so the query exists once: the class drives the CSS
   // and `reframe` reads the same flag, which is what keeps the panel and the
   // artwork from disagreeing about where the edge between them is.
-  const sideways = window.matchMedia(LANDSCAPE);
+  const sideways = window.matchMedia(RAIL);
   const applyOrientation = () => {
     document.body.classList.toggle('landscape', sideways.matches);
     resize();
