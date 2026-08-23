@@ -78,7 +78,8 @@ export const state = {
 
   // Fibonacci
   spiralArms: 2,
-  spiralSpread: 0,   // 0 = all in one plane, 1 = evenly distributed over a sphere
+  spiralSpread: 0,   // 0 = arms in one plane, 1 = arms leaving evenly in 3D
+  spiralTurns: 1.1,  // how much each arm curls on its way out
   spiralRise: 0.35,
   phyllo: 0,
   phylloSize: 0.03,

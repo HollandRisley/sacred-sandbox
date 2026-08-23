@@ -744,6 +744,7 @@ const FIT_DIAMETER = 3.2;
 const _normal = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const X_AXIS = new THREE.Vector3(1, 0, 0);
 
 /**
  * Rebuilt every frame now rather than on change, because the emanation moves
@@ -1949,8 +1950,8 @@ const spiralPool = Array.from({ length: MAX_SPIRALS * (SPIRAL_POINTS + 1) }, () 
 let spiralCursor = 0;
 const takeSpiralPoint = () => spiralPool[spiralCursor++];
 const _spiralAxis = new THREE.Vector3();
-const _spiralTilt = new THREE.Quaternion();
 const _spiralQuat = new THREE.Quaternion();
+const _spiralCross = new THREE.Vector3();
 const spiralPaths = [];
 const phylloList = [];
 let phylloCache = [];
@@ -1969,32 +1970,56 @@ function updateFibonacci() {
 
   const arms = Math.min(Math.round(state.spiralArms), MAX_SPIRALS);
   const spread = state.spiralSpread;
-  for (let i = 0; i < arms; i++) {
-    // Arms evenly spaced round the turn; the spiral itself also creeps with the
-    // clock so growth reads as continuous rather than as a static drawing.
-    const phase = (i / arms) * Math.PI * 2 + clock * state.emanate * Math.PI;
-    const pts = goldenSpiral(3, SPIRAL_POINTS, outerR, state.spiralRise, phase, takeSpiralPoint);
+  const turns = state.spiralTurns;
 
-    /**
-     * OUT OF THE PLANE
-     *
-     * Flat, the arms are evenly spaced round one turn: two face opposite ways,
-     * three make a triangle, four the points of a compass. That is the same
-     * arrangement at every count, seen from above.
-     *
-     * Spread tilts each arm's plane towards its own direction on a sphere,
-     * taken from the emitter's distribution — an even ring blended into a
-     * Fibonacci sphere, latitudes spaced for equal area and longitudes turned
-     * by the golden angle. So the same control that opens two arms into a pair
-     * facing away from each other opens twenty into an even shell, and nothing
-     * clumps at the poles on the way.
-     */
-    if (spread > 0.002 && arms > 1) {
-      armDirection(i, arms, 1, _spiralAxis);
-      _spiralTilt.setFromUnitVectors(Z_AXIS, _spiralAxis);
-      _spiralQuat.identity().slerp(_spiralTilt, spread);
-      for (const pt of pts) pt.applyQuaternion(_spiralQuat);
-    }
+  /**
+   * ARMS OUT OF A CENTRE
+   *
+   * Each spiral is built in one canonical frame and then aimed. Its own phase
+   * is set to `-total`, which lands its far end on the +X axis — so the curve
+   * starts at the middle and leaves along a known direction — and the whole
+   * thing is then rotated to point that direction wherever the arm belongs.
+   *
+   * The alternative, and the thing this replaces, was to tilt the *plane* each
+   * spiral lies in. That distributes the planes evenly but not the arms: two of
+   * them came out as mirror images sharing the middle rather than as two arms
+   * leaving the centre in opposite directions, which is the thing being asked
+   * for.
+   *
+   * Directions are the emitter's distribution again — an even ring at spread 0,
+   * so two arms face opposite ways, three make a triangle and four the points
+   * of a compass; a Fibonacci sphere at spread 1, so twenty leave evenly in
+   * three dimensions. The set turns slowly as a whole rather than each arm
+   * turning on its own, which would swing them off their spacing.
+   */
+  const sweep = clock * state.emanate * Math.PI;
+  const cs = Math.cos(sweep);
+  const sn = Math.sin(sweep);
+
+  for (let i = 0; i < arms; i++) {
+    const total = turns * Math.PI * 2;
+    const pts = goldenSpiral(turns, SPIRAL_POINTS, outerR, state.spiralRise, -total, takeSpiralPoint);
+
+    armDirection(i, arms, spread, _spiralAxis);
+    // Turn the whole arrangement about the mandala's axis, keeping the spacing.
+    _spiralAxis.set(
+      _spiralAxis.x * cs - _spiralAxis.y * sn,
+      _spiralAxis.x * sn + _spiralAxis.y * cs,
+      _spiralAxis.z,
+    );
+    // Built by hand rather than with setFromUnitVectors, which chooses an
+    // arbitrary perpendicular when the two vectors are exactly opposite. For a
+    // pair of arms that meant one came out as the *mirror* of the other —
+    // winding the opposite way — instead of the same arm turned to face the
+    // other direction. Falling back to the mandala's own axis keeps both arms
+    // the same hand, which is what two arms of one spiral are.
+    _spiralCross.crossVectors(X_AXIS, _spiralAxis);
+    if (_spiralCross.lengthSq() < 1e-8) _spiralCross.copy(Z_AXIS);
+    _spiralQuat.setFromAxisAngle(
+      _spiralCross.normalize(),
+      Math.acos(Math.max(-1, Math.min(1, X_AXIS.dot(_spiralAxis)))),
+    );
+    for (const pt of pts) pt.applyQuaternion(_spiralQuat);
 
     spiralPaths.push({ pts, fade: 0.85, phase: i / arms });
   }

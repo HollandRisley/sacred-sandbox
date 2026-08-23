@@ -694,19 +694,32 @@ solid and travels out with it, and the solid has its own size, transparency and
 glow so it can be a lantern around the light rather than a lid over it. Size at
 zero hides the star if you want only the solid.
 
-## Spirals out of the plane
+## Arms out of a centre
 
-Flat, the golden spirals are evenly spaced round one turn: two face opposite
-ways, three make a triangle, four the points of a compass. That is the same
-arrangement at every count, seen from above.
+Each spiral is built in one canonical frame and then *aimed*. Its own phase is
+set to `-total`, which lands its far end on the +X axis — so the curve starts in
+the middle and leaves along a known direction — and the whole thing is then
+rotated to point wherever that arm belongs. **Curl** sets how much it winds on
+the way out: under a turn and it shoots, over two and it winds into a rose.
 
-**Spread** tilts each arm's plane towards its own direction on a sphere, taken
-from the emitter's distribution — an even ring blended into a Fibonacci sphere,
-latitudes spaced for equal area and longitudes turned by the golden angle. So
-the one control that opens two arms into a facing pair opens twenty into an even
-shell, and nothing clumps at the poles on the way. Measured at spread 0 the
-arms never leave the plane whatever the count; at spread 1 with twelve arms they
-reach 3.17 out of the plane against a radius of 3.19.
+The first attempt tilted the *plane* each spiral lay in, which distributes the
+planes evenly but not the arms — two came out as mirror images sharing the
+middle rather than as two arms leaving the centre in opposite directions.
+
+The aiming rotation is built by hand rather than with `setFromUnitVectors`,
+which chooses an arbitrary perpendicular when two vectors are exactly opposite.
+For a pair of arms that produced one arm as the *mirror* of the other, winding
+the opposite way: measured, the ends came out at (2.42, −1.16) and (−2.42,
+−1.16), a reflection, where two arms of one spiral should be point-symmetric at
+(−2.42, +1.16). Falling back to the mandala's own axis in the degenerate case
+keeps both arms the same hand.
+
+Directions are the emitter's distribution: an even ring at spread 0, so two arms
+face opposite ways, three make a triangle and four the points of a compass; a
+Fibonacci sphere at spread 1, so sixteen leave evenly in every direction —
+measured, 5.95 of vertical span against 5.87 of horizontal. The set turns slowly
+as a whole rather than each arm turning on its own, which would swing them off
+their spacing.
 
 ## The top nav
 

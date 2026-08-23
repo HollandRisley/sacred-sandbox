@@ -410,7 +410,9 @@ const SPEC = [
           : v === 4 ? 'the points of a compass' : `${v} evenly spaced`) },
       // Flat, they are the same arrangement at any count seen from above. This
       // tilts each one towards its own direction on a sphere.
-      { key: 'spiralSpread', label: 'Spread', min: 0, max: 1, step: 0.01, when: (s) => Math.round(s.spiralArms) > 1, read: (v) => (v < 0.005 ? 'one plane' : v > 0.995 ? 'a full shell' : v.toFixed(2)) },
+      // Few turns and an arm shoots out; many and it winds into a rose.
+      { key: 'spiralTurns', label: 'Curl', min: 0.2, max: 4, step: 0.05, when: (s) => Math.round(s.spiralArms) > 0, read: (v) => `${v.toFixed(2)} turns` },
+      { key: 'spiralSpread', label: 'Spread', min: 0, max: 1, step: 0.01, when: (s) => Math.round(s.spiralArms) > 1, read: (v) => (v < 0.005 ? 'one plane' : v > 0.995 ? 'every direction' : v.toFixed(2)) },
       { key: 'spiralRise', label: 'Spiral rise', min: 0, max: 1.2, step: 0.01, read: (v) => (v < 0.005 ? 'flat' : v.toFixed(2)) },
       { key: 'phyllo', label: 'Phyllotaxis', min: 0, max: 400, step: 5, read: (v) => (v === 0 ? 'off' : `${v} seeds`) },
       { key: 'phylloSize', label: 'Seed size', min: 0.008, max: 0.12, step: 0.002 },
