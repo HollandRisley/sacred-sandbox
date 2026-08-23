@@ -311,8 +311,18 @@ rig.add(ringHalo, rings, boundRings, nodeGlow, nodeSpheres, nodeSolids, eggs);
 
 // 25 points at full 4D means 300 pairs, not the flat figure's 78.
 const MAX_JOIN_EDGES = 300;
-const joinLines = new EnergyLines(MAX_JOIN_EDGES, MAX_JOIN_EDGES * 8, { coreOpacity: 0.85, haloOpacity: 0.1 });
+/**
+ * A curved edge is not one segment but several, so the linework has to hold the
+ * multiple. Eight is enough that a bow reads as a curve rather than a dogleg,
+ * and 300 × 8 is the same order as the toroid's pool.
+ */
+const JOIN_CURVE_STEPS = 8;
+const joinLines = new EnergyLines(MAX_JOIN_EDGES * JOIN_CURVE_STEPS, MAX_JOIN_EDGES * 8, { coreOpacity: 0.85, haloOpacity: 0.1 });
 const joinVerts = new SphereField(METATRON_POINTS.length, { material: pearlMaterial(0.8), segments: [16, 12] });
+// The same choice the lattice nodes have: a billboard with a hard core and thin
+// diffraction spikes reads as a point of light, where a sphere — however
+// translucent — always has a silhouette and a highlight, and reads as an object.
+const joinGlow = new PrismHalo(METATRON_POINTS.length, 'soft');
 // Outlines of the Metatron faces whose centres a bound solid's vertices are.
 // Under joinGroup, so they sit on the figure exactly rather than near it.
 const anchorLines = new EnergyLines(40, 1, { coreOpacity: 0.7, haloOpacity: 0.12 });
@@ -321,7 +331,7 @@ const anchorLines = new EnergyLines(40, 1, { coreOpacity: 0.7, haloOpacity: 0.12
 // tinted apart from mere proximity.
 const spokeLines = new EnergyLines(80, 1, { coreOpacity: 0.55, haloOpacity: 0.05 });
 const joinGroup = new THREE.Group();
-joinGroup.add(joinLines, joinVerts, anchorLines, spokeLines);
+joinGroup.add(joinLines, joinVerts, joinGlow, anchorLines, spokeLines);
 rig.add(joinGroup);
 
 const solidLines = new EnergyLines(32, 32 * PULSE_CAP, { coreOpacity: 0.95, haloOpacity: 0.12 });
@@ -509,6 +519,7 @@ function prepareSpriteMesh(slot, id, look) {
 // ---------------------------------------------------------------- palette
 
 const _sparkTint = new THREE.Color();
+const _joinSparkTint = new THREE.Color();
 const palette = { ring: new THREE.Color(), join: new THREE.Color(), solid: new THREE.Color(), poly: new THREE.Color() };
 
 /**
@@ -607,6 +618,8 @@ function applyLook() {
   // The glow field alone takes the spark colour; the pearl and matter spheres
   // keep their own washed tint so Sheen still means something for them.
   nodeGlow.tint = _sparkTint;
+  joinGlow.material.opacity = state.glow;
+  joinGlow.tint = _joinSparkTint.copy(layer.joins).lerp(WHITE, 0.5);
   eggs.baseColor.copy(_pearlTint);
   phylloSpheres.baseColor.copy(_pearlTint2.copy(layer.fib).lerp(WHITE, wash));
 
@@ -1051,6 +1064,32 @@ const joinPos = METATRON_POINTS.map(() => new THREE.Vector3());
 // as edges is a property of the polytope, not of the shadow it happens to cast.
 const joinRaw = METATRON_POINTS.map(() => [0, 0, 0, 0]);
 const joinEdgePool = Array.from({ length: MAX_JOIN_EDGES * 2 }, () => new THREE.Vector3());
+const joinCurvePool = Array.from({ length: MAX_JOIN_EDGES * JOIN_CURVE_STEPS + 16 }, () => new THREE.Vector3());
+const _bowMid = new THREE.Vector3();
+const _bowDir = new THREE.Vector3();
+const _bowCtl = new THREE.Vector3();
+const BOW_FALLBACK = new THREE.Vector3(0, 0, 1);
+
+/**
+ * WHICH WAY AN EDGE BOWS
+ *
+ * A curve needs a direction to bend in, and picking one per edge at random
+ * reads as noise rather than as life — the figure looks crumpled instead of
+ * billowing. So every edge bows *outward from the centre*, which is a direction
+ * the whole web agrees on: the result opens like a jellyfish rather than
+ * crinkling.
+ *
+ * The exception is an edge whose midpoint is on the centre — the long diagonals
+ * straight through Metatron — where "outward" means nothing. Those take a
+ * perpendicular to the edge instead, so they still bend, just not radially.
+ */
+function bowDirection(a, b, out) {
+  _bowMid.addVectors(a, b).multiplyScalar(0.5);
+  if (_bowMid.lengthSq() > 1e-6) return out.copy(_bowMid).normalize();
+  out.subVectors(b, a).cross(BOW_FALLBACK);
+  if (out.lengthSq() < 1e-9) out.set(1, 0, 0);
+  return out.normalize();
+}
 const joinTints = Array.from({ length: MAX_JOIN_EDGES }, () => new THREE.Color());
 
 // Metatron's edge set is not fixed: which pairs are close enough to join
@@ -1100,6 +1139,7 @@ function updateJoins() {
   if (!drawing && !mappedLattice && !boundSolid) {
     joinLines.setPaths([]);
     joinVerts.set([]);
+    joinGlow.count = 0;
     anchorLines.setPaths([]);
     spokeLines.setPaths([]);
     joinActive = 0;
@@ -1169,7 +1209,10 @@ function updateJoins() {
     joinTrails = edgeTrails(joinPairs, active).map((t) => {
       const closed = isClosed(t);
       const ids = closed ? t.slice(0, -1) : t;
-      const n = closed ? ids.length : ids.length - 1;
+      // Sized for the curved case: a bowed edge is JOIN_CURVE_STEPS segments,
+      // and over-allocating costs a few colours where re-allocating on every
+      // change of the curve slider would cost a stutter.
+      const n = (closed ? ids.length : ids.length - 1) * JOIN_CURVE_STEPS;
       return {
         ids,
         closed,
@@ -1188,18 +1231,71 @@ function updateJoins() {
   // being traced. Each segment keeps its own colour and weight — the short
   // edges are the polyhedron's own skeleton and run brighter than the long
   // diagonals, which is what keeps the solid readable inside the full web.
+  // Bowed by a slow breath rather than held bent: a fixed curve is a shape, a
+  // moving one is alive. The phase runs along the trail so the bend travels
+  // rather than every edge pulsing together.
+  const curve = state.joinCurve;
+  const bowing = curve > 0.004;
+  const steps = bowing ? JOIN_CURVE_STEPS : 1;
+  let cp = 0;
+
   for (const trail of joinTrails) {
-    const { ids, pts, tints, segFades } = trail;
-    for (let i = 0; i < ids.length; i++) pts[i] = joinPos[ids[i]];
-    for (let i = 0; i < tints.length; i++) {
+    const { ids, tints, segFades } = trail;
+    const pts = trail.curvePts || (trail.curvePts = []);
+    pts.length = 0;
+    let seg = 0;
+
+    const edges = trail.closed ? ids.length : ids.length - 1;
+    for (let i = 0; i < edges; i++) {
       const a = ids[i];
       const b = ids[(i + 1) % ids.length];
+      const pa = joinPos[a];
+      const pb = joinPos[b];
       const d = dist4(joinRaw[a], joinRaw[b]);
       const near = 1 - Math.min((d - minD) / Math.max(maxD - minD, 1e-4), 1);
-      const w = Math.min(joinPos[a].weight, joinPos[b].weight);
-      tints[i].copy(layer.joins).lerp(layer.joinsAlt, 1 - near);
-      segFades[i] = w * (0.35 + near * 0.65);
+      const w = Math.min(pa.weight, pb.weight);
+
+      if (!bowing) {
+        pts.push(pa);
+        if (seg < tints.length) {
+          tints[seg].copy(layer.joins).lerp(layer.joinsAlt, 1 - near);
+          segFades[seg] = w * (0.35 + near * 0.65);
+        }
+        seg++;
+        continue;
+      }
+
+      // A quadratic through a control point pushed off the midpoint. The bow
+      // scales with the edge's own length, so short edges stay taut and long
+      // diagonals swing — which is what makes it read as a membrane rather
+      // than as every line being bent by the same amount.
+      const len = pa.distanceTo(pb);
+      const breath = 1 + 0.35 * Math.sin(clock * state.joinCurveRate * Math.PI * 2 + i * 0.7);
+      bowDirection(pa, pb, _bowDir);
+      _bowCtl.addVectors(pa, pb).multiplyScalar(0.5)
+        .addScaledVector(_bowDir, curve * len * 0.9 * breath);
+
+      for (let k = 0; k < steps; k++) {
+        if (cp >= joinCurvePool.length) break;
+        const u = k / steps;
+        const v = 1 - u;
+        const p = joinCurvePool[cp++];
+        // (1-u)²·a + 2(1-u)u·control + u²·b
+        p.set(0, 0, 0)
+          .addScaledVector(pa, v * v)
+          .addScaledVector(_bowCtl, 2 * v * u)
+          .addScaledVector(pb, u * u);
+        pts.push(p);
+        if (seg < tints.length) {
+          tints[seg].copy(layer.joins).lerp(layer.joinsAlt, 1 - near);
+          segFades[seg] = w * (0.35 + near * 0.65);
+        }
+        seg++;
+      }
     }
+
+    // An open trail has to be told where it ends; a closed one wraps.
+    if (!trail.closed && edges > 0) pts.push(joinPos[ids[ids.length - 1]]);
     joinPaths.push({ pts, tints, segFades, closed: trail.closed, fade });
   }
   joinLines.setPaths(joinPaths);
@@ -1214,7 +1310,15 @@ function updateJoins() {
       });
     }
   }
-  joinVerts.set(joinNodeList);
+  // Star or sphere, never both.
+  if (Math.round(state.joinLook) === 0 && joinNodeList.length) {
+    joinVerts.set([]);
+    joinGlow.faceCamera(camera);
+    joinGlow.set(joinNodeList, state.joinGlowSpread * 3.4, 1);
+  } else {
+    joinGlow.count = 0;
+    joinVerts.set(joinNodeList);
+  }
   joinActive = active;
   joinCurrentSize = size;
 }

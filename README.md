@@ -563,6 +563,33 @@ console, and is written to be honest about it: an earlier version called
 `XMLHttpRequest` and `WebSocket` "allowed" because their constructors had not
 thrown, when the policy was in fact refusing both a moment later.
 
+### Metatron, organically
+
+**Vertex surface** gives the thirteen points the same choice the lattice nodes
+have: stars or pearl spheres. A star is a camera-facing billboard with a hard
+bright core, a fast-falling haze and thin diffraction spikes — a sphere, however
+translucent, always has a silhouette and a highlight, and reads as an object
+where a point of light should.
+
+**Curve** bows the edges instead of running them straight, which turns a diagram
+into a membrane. The linework already took polylines rather than segments, so an
+edge simply becomes eight points along a quadratic, and nothing downstream
+changes — the trails are walks over *vertices*, so pulses keep turning corners
+regardless.
+
+The part that decides whether it looks alive is **which way each edge bows**. A
+normal chosen per edge reads as noise: the figure looks crumpled. Every edge
+bows *outward from the centre* instead, a direction the whole web agrees on, so
+it opens like a jellyfish. The exception is an edge whose midpoint sits on the
+centre — the long diagonals straight through the middle — where "outward" means
+nothing and a perpendicular is used instead. The bow scales with each edge's own
+length, so short edges stay taut while long diagonals swing, and **Breathe**
+gives it a slow phase that runs along the trail, so the bend travels rather than
+every edge pulsing at once.
+
+Curving multiplies the segment count by the number of steps — measured, 156 to
+1,248 — so the join layer's pool is sized for it up front.
+
 ### The contract
 
 One function. Numbers in, numbers out. No imports, no `async`, no DOM, and
@@ -825,24 +852,6 @@ body — behind a server route, because a browser API key is public.
 
 Shareable links and WebXR are both done and have moved into the sections above.
 What is left, roughly in the order it is likely to happen:
-
-**Metatron's Cube, organically**
-
-- **Vertex spheres as stars.** The lattice nodes already have three surfaces —
-  glow, pearl and matter — where *glow* is a camera-facing billboard carrying a
-  hard bright core, a fast-falling haze and thin diffraction spikes. Metatron's
-  vertices are still only spheres. They want the same choice, which is mostly a
-  matter of giving `joinVerts` a `PrismHalo` alongside its `SphereField` and a
-  Vertex surface control to pick between them, exactly as **Node surface** does.
-- **Curved edges.** A curvature slider that bows the lines instead of running
-  them straight, for something closer to a jellyfish than a diagram. The
-  linework already takes polylines rather than segments, so an edge becomes an
-  arc of a dozen points and nothing downstream changes — the trails are walks
-  over *vertices*, so they keep turning corners regardless. The thing to get
-  right is which way each edge bows: a random normal per edge will look like
-  noise, so the bow should be consistent in Metatron's own frame — away from the
-  centroid, say — and given a slow phase so the whole web breathes rather than
-  sitting bent.
 
 **From the plan** (`gallery, extensions, and a landscape UI`)
 

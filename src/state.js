@@ -27,6 +27,10 @@ export const state = {
   joinSize: 0.98,
   joinReach: 0.59,        // 1 = every pair joined (the classic 78 lines)
   joinNodeSize: 0.062,
+  joinLook: 0,          // 0 = stars, 1 = pearl spheres
+  joinGlowSpread: 1,    // how far a star's light reaches past its point
+  joinCurve: 0,         // 0 = straight lines, 1 = a billowing membrane
+  joinCurveRate: 0.18,  // how fast the bow breathes
   joinTumble: 0.5,
   joinBreath: 0,
 

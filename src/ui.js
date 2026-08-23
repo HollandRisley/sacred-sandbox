@@ -298,7 +298,12 @@ const SPEC = [
       { key: 'joinDim', label: 'Dimension', min: 2, max: 4, step: 0.01, read: (v) => (v < 2.02 ? '2D — Fruit of Life' : v < 2.98 ? `${v.toFixed(2)}D — lifting` : v < 3.02 ? '3D — cuboctahedron' : v > 3.98 ? '4D — 24-cell' : `${v.toFixed(2)}D — opening`) },
       { key: 'joinReach', label: 'Edge reach', min: 0, max: 1, step: 0.01, read: (v) => (v > 0.99 ? 'every pair' : v < 0.05 ? 'shortest only' : v.toFixed(2)) },
       { key: 'joinSize', label: 'Size', min: 0.2, max: 2.5, step: 0.01 },
-      { key: 'joinNodeSize', label: 'Vertex spheres', min: 0, max: 0.2, step: 0.002, read: (v) => (v < 0.001 ? 'off' : v.toFixed(3)) },
+      { key: 'joinNodeSize', label: 'Vertices', min: 0, max: 0.2, step: 0.002, read: (v) => (v < 0.001 ? 'off' : v.toFixed(3)) },
+      { key: 'joinLook', label: 'Vertex surface', min: 0, max: 1, step: 1, when: (s) => s.joinNodeSize > 0.001, read: (v) => ['Stars — edgeless light', 'Pearl — translucent bubble'][v] },
+      { key: 'joinGlowSpread', label: 'Star spread', min: 0.3, max: 3, step: 0.01, when: (s) => s.joinNodeSize > 0.001 && Math.round(s.joinLook) === 0 },
+      // Straight lines make a diagram; bowed ones make a membrane.
+      { key: 'joinCurve', label: 'Curve', min: 0, max: 1, step: 0.01, read: (v) => (v < 0.005 ? 'straight' : `${Math.round(v * 100)}% bow`) },
+      { key: 'joinCurveRate', label: 'Breathe', min: 0, max: 1, step: 0.01, when: (s) => s.joinCurve > 0.005, read: (v) => (v < 0.005 ? 'held' : v.toFixed(2)) },
       { key: 'joinTumble', label: 'Tumble', min: -0.5, max: 0.5, step: 0.005 },
       { key: 'joinBreath', label: 'Breathe', min: 0, max: 0.6, step: 0.01, read: (v) => (v < 0.005 ? 'fixed' : v.toFixed(2)) },
       colourOf('hueJoins'),
