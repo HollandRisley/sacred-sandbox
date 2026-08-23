@@ -636,9 +636,57 @@ body.landscape .group { border-bottom: none; }
 body.landscape #sections > .group.acc:not(.open) .gbody { display: block; }
 body.landscape #sections > .group.acc:not(.open) { padding-bottom: 0; }
 
+.tabrow { display: flex; align-items: stretch; }
+.tabrow.hidden { display: none; }
+/* Sideways every layer carries its own eye, so the chips are redundant there. */
+body.landscape .visrow { display: none; }
+
+.railhead { display: none; }
+body.landscape .railhead {
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+body.landscape .railhead button {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--dim);
+  border-radius: 6px;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+body.landscape .railhead button:hover { color: var(--ink); }
+
+.eye {
+  flex: none;
+  width: 30px;
+  border: none;
+  border-left: 1px solid transparent;
+  background: none;
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+.eye svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+/* An eye that is off should read as off at a glance, without being invisible —
+   it is the control you need in order to turn the layer back on. */
+.tabrow.off .eye { color: rgba(141, 151, 189, 0.45); }
+.tabrow.off .tab { color: rgba(141, 151, 189, 0.5); }
+.eye:hover { color: var(--ink); }
+
 .tab {
   display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   text-align: left;
   padding: 9px 10px;
   border: none;
@@ -651,7 +699,6 @@ body.landscape #sections > .group.acc:not(.open) { padding-bottom: 0; }
   line-height: 1.25;
   cursor: pointer;
 }
-.tab.hidden { display: none; }
 .tab.on {
   color: var(--ink);
   border-left-color: var(--accent);

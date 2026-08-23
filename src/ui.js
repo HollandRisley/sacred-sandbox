@@ -603,6 +603,9 @@ export function buildUI(onChange, onLayout, store) {
    */
   const railEl = document.createElement('nav');
   railEl.id = 'rail';
+  railEl.innerHTML = `<div class="railhead">
+      <button type="button" data-rail="1">all</button><button type="button" data-rail="0">none</button>
+    </div>`;
   const sectionsEl = document.createElement('div');
   sectionsEl.id = 'sections';
   panel.append(railEl, sectionsEl);
@@ -619,30 +622,77 @@ export function buildUI(onChange, onLayout, store) {
     });
   };
 
-  /** Register a section and give it a tab on the rail. */
-  const addSection = (el, label, when) => {
+  const EYE = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3.2"/></svg>`;
+  const EYE_OFF = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.1A9.9 9.9 0 0 1 12 6c7 0 10.5 6 10.5 6a17 17 0 0 1-3.5 4.1M6.2 8A16.6 16.6 0 0 0 1.5 12S5 18 12 18a9.7 9.7 0 0 0 3.6-.7"/><path d="M9.9 9.9a3.2 3.2 0 0 0 4.3 4.3"/></svg>`;
+
+  /**
+   * Register a section and give it a row on the rail.
+   *
+   * A layer's row carries its own eye, so turning things on and off happens
+   * where you are rather than by going back to a list somewhere else. That is
+   * why the rail keeps rows for layers that are switched off, where an earlier
+   * version hid them: a control you cannot reach is no use for switching
+   * something *on*.
+   */
+  const addSection = (el, label, when, owner) => {
     const index = sections.length;
+    const row = document.createElement('div');
+    row.className = 'tabrow';
+
     const tab = document.createElement('button');
     tab.type = 'button';
     tab.className = 'tab';
     tab.textContent = label;
-    tab.addEventListener('click', () => selectSection(index));
-    railEl.appendChild(tab);
-    sectionsEl.appendChild(el);
-    const sec = { el, tab, when };
-    sections.push(sec);
-    // A section whose layer is switched off has nothing to control, so its tab
-    // goes with it rather than leading to an empty pane.
-    if (when) {
-      bindings.push(() => {
-        const shown = when(state);
-        tab.classList.toggle('hidden', !shown);
-        // Never leave the pane pointing at a tab that has just vanished.
-        if (!shown && sections[active] === sec) selectSection(0);
+    tab.addEventListener('click', () => {
+      // Asking to see a layer that is off means you want it on. The eye is
+      // for turning things off without going anywhere.
+      if (owner && !state[owner]) {
+        state[owner] = true;
+        refresh();
+        onChange(owner);
+      }
+      selectSection(index);
+    });
+    row.appendChild(tab);
+
+    let eye = null;
+    if (owner) {
+      eye = document.createElement('button');
+      eye.type = 'button';
+      eye.className = 'eye';
+      eye.title = `Show or hide ${label}`;
+      eye.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state[owner] = !state[owner];
+        refresh();
+        onChange(owner);
       });
+      row.appendChild(eye);
     }
+
+    railEl.appendChild(row);
+    sectionsEl.appendChild(el);
+    const sec = { el, tab, row, when, owner };
+    sections.push(sec);
+
+    bindings.push(() => {
+      if (owner) {
+        const on = state[owner];
+        eye.innerHTML = on ? EYE : EYE_OFF;
+        eye.setAttribute('aria-pressed', String(on));
+        row.classList.toggle('off', !on);
+      }
+      if (when) {
+        const shown = when(state);
+        // The row stays either way in the rail; only a section with no owner —
+        // nothing to switch on — disappears with its condition.
+        if (!owner) row.classList.toggle('hidden', !shown);
+        if (!shown && sections[active] === sec) selectSection(timeIndex);
+      }
+    });
     return index;
   };
+  let timeIndex = 0;
 
   // ---- visibility chips, first and always
   const vis = document.createElement('section');
@@ -663,6 +713,15 @@ export function buildUI(onChange, onLayout, store) {
       onChange('visibility');
     });
   }
+  for (const btn of railEl.querySelectorAll('[data-rail]')) {
+    btn.addEventListener('click', () => {
+      const on = btn.dataset.rail === '1';
+      for (const [key] of VISIBILITY) state[key] = on;
+      refresh();
+      onChange('visibility');
+    });
+  }
+
   for (const [key, label] of VISIBILITY) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -691,7 +750,10 @@ export function buildUI(onChange, onLayout, store) {
     bindings.push(() => b.classList.toggle('on', state[key]));
     chips.appendChild(b);
   }
-  addSection(vis, 'Visible');
+  // Portrait still opens on the chips. Sideways they are redundant — every
+  // layer has its own eye on the rail — so the row is dropped there.
+  const visIndex = addSection(vis, 'Visible');
+  sections[visIndex].row.classList.add('visrow');
 
   for (const group of SPEC) {
     const g = document.createElement('section');
@@ -744,7 +806,8 @@ export function buildUI(onChange, onLayout, store) {
       body.appendChild(row);
     }
     if (group.after) body.insertAdjacentHTML('beforeend', group.after);
-    addSection(g, group.title, group.when);
+    const idx = addSection(g, group.title, group.when, group.owner);
+    if (group.title === 'Time') timeIndex = idx;
   }
 
   // ---- the gallery
@@ -848,6 +911,6 @@ export function buildUI(onChange, onLayout, store) {
   });
 
   refresh();
-  selectSection(0);
+  selectSection(timeIndex);
   return { refresh, selectSection };
 }
