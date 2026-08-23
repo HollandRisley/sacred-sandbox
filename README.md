@@ -534,6 +534,19 @@ so an old save cannot inject parameters that no longer exist. Camera *zoom* is
 deliberately not stored: the layout code owns it, shrinking the view when the
 panel is open, so a restored value would just be overwritten.
 
+## What it opens on
+
+The defaults are a composition, not a blank start — the lattice wrapped and
+stacked three deep, Metatron just short of three dimensions, the hypercube
+tethered to it, and one wide toroid turning slowly around the whole thing, seen
+from a particular angle. Every value came off the panel and was pasted back into
+`state.js`; the camera's opening position went with it, because an artwork here
+is the settings and the viewpoint together.
+
+Order of precedence on load is link, then save, then these. Someone who followed
+a link came to see that position and should not have it replaced by whatever was
+last saved on their device.
+
 ## Sharing a position
 
 Every position is a link. The fragment carries only what differs from the

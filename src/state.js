@@ -1,14 +1,16 @@
 export const state = {
-  // What is present. Opens on the singularity alone — the piece starts at the
-  // centre and everything else is something you choose to add to it.
+  // What is present. These are one composition rather than a bare starting
+  // point: the lattice wrapped and stacked three deep, Metatron just short of
+  // three dimensions, the hypercube tethered to it and a single wide toroid
+  // turning slowly around the whole thing. Everything here came off the panel.
   showRings: false,
-  showNodes: false,
-  showJoins: false,
+  showNodes: true,
+  showJoins: true,
   showSolid: false,
   showMerkaba: false,
-  showPoly: false,
-  showCore: true,
-  showToroid: false,
+  showPoly: true,
+  showCore: false,
+  showToroid: true,
   showFib: false,
   showPulses: true,
   showSpirals: false,
@@ -16,17 +18,17 @@ export const state = {
 
   // Time — one master clock everything else is a multiple of
   time: 1,
-  emanate: 0.08,    // outward flow rate of the shells
+  emanate: 0.265,    // outward flow rate of the shells
   shells: 3,        // 0 = a single still figure
-  contract: 0.33,   // fraction of streams running inward instead
+  contract: 0,   // fraction of streams running inward instead
 
   // Metatron's Cube — its own object now, not a flat overlay
-  joinDim: 3,          // 2 = flat Fruit of Life, 3 = cuboctahedron, 4 = 24-cell
-  joinSize: 1,
-  joinReach: 1,        // 1 = every pair joined (the classic 78 lines)
-  joinNodeSize: 0.05,
-  joinTumble: 0.09,
-  joinBreath: 0.12,
+  joinDim: 2.97,          // 2 = flat Fruit of Life, 3 = cuboctahedron, 4 = 24-cell
+  joinSize: 0.98,
+  joinReach: 0.59,        // 1 = every pair joined (the classic 78 lines)
+  joinNodeSize: 0.062,
+  joinTumble: 0.5,
+  joinBreath: 0,
 
   // Sacred geometry
   mapToMetatron: false,   // place the lattice on Metatron's points instead
@@ -37,14 +39,14 @@ export const state = {
   extent: 2,
   echoes: 1,
   wrap: 0.4,        // 0 = flat plane, 1 = wrapped onto the sphere
-  wrapSpread: 1.42, // sphere coverage; 1.42 puts the shell's centroid on the origin
+  wrapSpread: 1.81, // sphere coverage; at 1.42 the shell's centroid sits on the origin
   radius: 1,
-  layers: 0,
+  layers: 3,
   spin: 0.05,
-  nodeSize: 0.11,
-  nodeDensity: 0.35,    // fraction of lattice nodes that get a marker
+  nodeSize: 0.14,
+  nodeDensity: 1,    // fraction of lattice nodes that get a marker
   nodeLook: 0,          // 0 glow (edgeless), 1 pearl, 2 matter
-  nodeGlowSpread: 1,    // how far the glow reaches past the node
+  nodeGlowSpread: 1.14,    // how far the glow reaches past the node
 
   // Singularity — the Hopf core
   fibres: 9,
@@ -56,12 +58,12 @@ export const state = {
   coreTwist: 0.55,   // rotation added per level, which makes it spiral
 
   // Toroid
-  torMajor: 1.5,
+  torMajor: 2.68,
   torMinor: 0.62,
-  torWindings: 5,
+  torWindings: 1,
   torLines: 8,
-  torFlow: 0.1,
-  torStrands: 2,     // interwoven counter-flowing strand groups
+  torFlow: 0.05,
+  torStrands: 1,     // interwoven counter-flowing strand groups; 1 = a single flow
   torCouple: 1,      // how strongly each strand follows its merkaba twin
 
   // Merkaba
@@ -114,8 +116,8 @@ export const state = {
   polyScale: 0.55,
   eyeW: 2.8,
   rotXW: 0.18,
-  rotYW: 0.0,
-  rotZW: 0.09,
+  rotYW: 0,
+  rotZW: 0.8,
   tethers: 0.7,
   polyNodeSize: 0.05,   // pearl spheres at the polytope's vertices; 0 hides them
 
@@ -132,7 +134,7 @@ export const state = {
 
   // Beam: how much of each line is lit at once. 1 = the whole thing (a solid
   // line); 0 = a single particle racing the track and drawing it as it goes.
-  beamTail: 1,
+  beamTail: 0.725,
 
   // Prism dispersion around particles and vertices
   prism: 0.8,
@@ -154,12 +156,12 @@ export const state = {
   // global one, so layers can read as separate things rather than one family.
   // 0 = follow the palette.
   hueRings: 0,
-  hueJoins: 0,
+  hueJoins: 0.14,
   hueSolid: 0,
   huePoly: 0,
   hueCore: 0,
   hueMerkaba: 0,
-  hueToroid: 0,
+  hueToroid: 0.21,
   hueFib: 0,
   hueEmitter: 0,
 

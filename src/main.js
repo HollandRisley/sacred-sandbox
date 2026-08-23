@@ -197,7 +197,10 @@ function createBloom(scene, camera) {
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
-camera.position.set(0, 0, 10);
+// The opening angle, saved off the panel along with everything in `DEFAULTS`.
+// An artwork here is the settings and the viewpoint together, so a default that
+// framed the figure from straight on would not be the same piece.
+camera.position.set(-0.4435, 1.1381, -7.3837);
 
 // Everything renderable hangs off `world`. Outside XR it sits at the origin at
 // unit scale; in XR it is shrunk to metres and placed in front of the viewer,
