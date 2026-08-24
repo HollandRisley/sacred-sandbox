@@ -594,6 +594,30 @@ every edge pulsing at once.
 Curving multiplies the segment count by the number of steps — measured, 156 to
 1,248 — so the join layer's pool is sized for it up front.
 
+### Several at once
+
+Up to four extensions run together, each with its own sandbox, its own pair of
+instanced pools and its own section in the panel. Nothing about an extension
+lives in a shared panel: its declared parameters *and* its drawing dials —
+scale, spin, dots, dot surface, colour — are all in its own section, because two
+running at once would otherwise fight over one set of sliders. Its own place on
+the hue circle is what lets two be told apart rather than arriving in the same
+colour.
+
+Four is the ceiling because each one is an iframe, a worker and two instanced
+meshes, and beyond that the round-trips compete for the frame more than the
+result is worth.
+
+The sections are made once and lent out rather than created and destroyed. The
+rail is built at startup and every tab closes over its own index, so adding and
+removing rows later would mean rebuilding the lot; four empty sections that hide
+themselves cost nothing.
+
+Markers are drawn as **stars** by default rather than pearl spheres. A sphere
+has a silhouette and a specular highlight and reads as a bubble; a billboard has
+neither and reads as light, which is nearly always what someone marking the
+points of a figure actually wants.
+
 ### The contract
 
 One function. Numbers in, numbers out. No imports, no `async`, no DOM, and

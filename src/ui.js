@@ -8,7 +8,8 @@ import { FORMS } from './geometry/forms.js';
 import { spriteLibrary, addSprite, removeSprite, onSpritesChanged } from './lib/sprites.js';
 import {
   extLibrary, addExtension, removeExtension, activate, deactivate,
-  isActive, activeExtension, setParam, onExtensionsChanged, EXAMPLE,
+  isActive, activeExtensions, setParam, setSetting, onExtensionsChanged,
+  MAX_ACTIVE, EXAMPLE,
 } from './lib/extensions.js';
 import { assistantAvailable, writeExtension } from './lib/aiSmith.js';
 import { interpret } from './ai.js';
@@ -64,11 +65,9 @@ function buildExtensionPanel(row, onChange, bindings) {
         <button type="button" class="extexample">example</button>
       </div>
     </details>
-    <div class="extparams"></div>
     <p class="note extnote"></p>`;
 
   const listEl = row.querySelector('.extlist');
-  const paramsEl = row.querySelector('.extparams');
   const noteEl = row.querySelector('.extnote');
   const codeEl = row.querySelector('.extcode');
   const nameEl = row.querySelector('.extname');
@@ -148,35 +147,9 @@ function buildExtensionPanel(row, onChange, bindings) {
     nameEl.value = '';
     row.querySelector('.extadd').open = false;
     noteEl.textContent = await activate(item.id);
+    state.showExt = true;
     onChange('extensions');
   });
-
-  /** Sliders for whatever the running extension declared. */
-  const paintParams = () => {
-    const { meta, params, error } = activeExtension();
-    paramsEl.textContent = '';
-    if (error) { noteEl.textContent = error; return; }
-    if (!meta) return;
-    for (const p of meta.params || []) {
-      if (!p || typeof p.key !== 'string') continue;
-      const el = document.createElement('label');
-      el.className = 'row';
-      const min = Number(p.min ?? 0);
-      const max = Number(p.max ?? 1);
-      const step = Number(p.step ?? 0.01);
-      const value = params[p.key];
-      el.innerHTML = `<span class="lab">${String(p.label || p.key).slice(0, 32)}<em class="val">${value}</em></span>
-        <input type="range" min="${min}" max="${max}" step="${step}" value="${value}" autocomplete="off">`;
-      const input = el.querySelector('input');
-      const val = el.querySelector('.val');
-      input.addEventListener('input', () => {
-        const v = parseFloat(input.value);
-        setParam(p.key, v);
-        val.textContent = v;
-      });
-      paramsEl.appendChild(el);
-    }
-  };
 
   const paint = () => {
     listEl.textContent = '';
@@ -190,13 +163,12 @@ function buildExtensionPanel(row, onChange, bindings) {
         else noteEl.textContent = await activate(item.id);
         onChange('extensions');
         paint();
-        paintParams();
-      });
+          });
       b.querySelector('.extdel').addEventListener('click', () => {
         removeExtension(item.id);
         noteEl.textContent = `removed ${item.name}`;
+        onChange('extensions');
         paint();
-        paintParams();
       });
       listEl.appendChild(b);
     }
@@ -204,8 +176,7 @@ function buildExtensionPanel(row, onChange, bindings) {
     // library has been read off disk, and a note left standing from then said
     // "nothing kept yet" underneath a full shelf.
     if (!extLibrary.length) noteEl.textContent = 'nothing kept yet — “write one” has a worked example';
-    else if (!activeExtension().error) noteEl.textContent = `${extLibrary.length} kept · tap one to run it`;
-    paintParams();
+    else noteEl.textContent = `${extLibrary.length} kept · tap to run, tap again to stop · ${MAX_ACTIVE} at once`;
   };
 
   onExtensionsChanged(paint);
@@ -581,13 +552,8 @@ const SPEC = [
     title: 'Extensions',
     owner: 'showExt',
     when: (s) => s.showExt,
-    note: 'Maths written by somebody else, run where it can reach neither this page nor the network. Paste some in, or open one you have kept.',
-    controls: [
-      { key: 'extScale', label: 'Scale', min: 0.1, max: 4, step: 0.01 },
-      { key: 'extSpin', label: 'Spin', min: -0.8, max: 0.8, step: 0.01 },
-      { key: 'extDotSize', label: 'Dots', min: 0, max: 0.4, step: 0.005, read: (v) => (v < 0.001 ? 'off' : v.toFixed(3)) },
-      colourOf('hueExt'),
-    ],
+    note: 'Maths written by somebody else, run where it can reach neither this page nor the network. Open the Studio to write or load one; each that is running gets its own section below.',
+    controls: [],
   },
   {
     title: 'Energy',
@@ -827,8 +793,13 @@ export function buildUI(onChange, onLayout, store) {
       if (when) {
         const shown = when(state);
         // The row stays either way in the rail; only a section with no owner —
-        // nothing to switch on — disappears with its condition.
-        if (!owner) row.classList.toggle('hidden', !shown);
+        // nothing to switch on — disappears with its condition. Its panel goes
+        // with it, or an unused extension slot shows as an empty group in the
+        // accordion, where there is no rail to hide it.
+        if (!owner) {
+          row.classList.toggle('hidden', !shown);
+          el.classList.toggle('hidden', !shown);
+        }
         if (!shown && sections[active] === sec) selectSection(timeIndex);
       }
     });
@@ -1021,6 +992,109 @@ export function buildUI(onChange, onLayout, store) {
   studioRow.className = 'row';
   buildExtensionPanel(studioRow, onChange, bindings);
   studioBody.appendChild(studioRow);
+
+  /**
+   * MY EXTENSIONS
+   *
+   * One section per running extension, so several can be layered and each
+   * adjusted on its own. Nothing about an extension lives in a shared panel:
+   * its own parameters and its own drawing dials are all in its own section,
+   * because two running at once would otherwise fight over one set of sliders.
+   *
+   * The sections are made once and lent out rather than created and destroyed.
+   * The rail is built at startup and every tab closes over its own index, so
+   * adding and removing rows later would mean rebuilding the lot; four empty
+   * sections that hide themselves cost nothing.
+   */
+  const extSections = [];
+  for (let i = 0; i < MAX_ACTIVE; i++) {
+    const el = document.createElement('section');
+    el.className = 'group acc extlayer';
+    el.innerHTML = `<button type="button" class="acch"><h2>Extension</h2><span class="caret" aria-hidden="true"></span></button>
+      <div class="gbody"></div>`;
+    el.querySelector('.acch').addEventListener('click', () => el.classList.toggle('open'));
+    const slot = { el, body: el.querySelector('.gbody'), title: el.querySelector('h2'), id: null };
+    extSections.push(slot);
+    addSection(el, `Extension ${i + 1}`, () => slot.id !== null);
+  }
+
+  /** A slider bound to something other than `state`, for an extension's dials. */
+  const bindSlider = (parent, label, value, min, max, step, read, onInput) => {
+    const el = document.createElement('label');
+    el.className = 'row';
+    el.innerHTML = `<span class="lab">${label}<em class="val"></em></span>
+      <input type="range" min="${min}" max="${max}" step="${step}" autocomplete="off">`;
+    const input = el.querySelector('input');
+    const val = el.querySelector('.val');
+    input.value = value;
+    val.textContent = read(value);
+    input.addEventListener('input', () => {
+      const v = parseFloat(input.value);
+      val.textContent = read(v);
+      onInput(v);
+    });
+    parent.appendChild(el);
+    return el;
+  };
+
+  const paintExtensionLayers = () => {
+    const live = activeExtensions();
+    for (let i = 0; i < extSections.length; i++) {
+      const slot = extSections[i];
+      const run = live[i];
+      if (!run) { slot.id = null; slot.body.textContent = ''; continue; }
+      // Only rebuilt when the section is showing something else, or every
+      // refresh would tear the sliders out from under a dragging finger.
+      if (slot.id === run.id) continue;
+
+      slot.id = run.id;
+      const name = run.meta?.name || run.item.name;
+      slot.title.textContent = name;
+      const tab = sections.find((sec) => sec.el === slot.el)?.tab;
+      if (tab) tab.textContent = name;
+
+      const body = slot.body;
+      body.textContent = '';
+
+      if (run.error) {
+        const bad = document.createElement('p');
+        bad.className = 'note';
+        bad.textContent = run.error;
+        body.appendChild(bad);
+      } else {
+        for (const p of run.meta?.params || []) {
+          if (!p || typeof p.key !== 'string') continue;
+          bindSlider(body, String(p.label || p.key).slice(0, 32), run.params[p.key],
+            Number(p.min ?? 0), Number(p.max ?? 1), Number(p.step ?? 0.01),
+            (v) => String(v), (v) => setParam(run.id, p.key, v));
+        }
+      }
+
+      const st = run.item.settings;
+      const head = document.createElement('p');
+      head.className = 'note';
+      head.textContent = 'How it is drawn';
+      body.appendChild(head);
+      bindSlider(body, 'Scale', st.scale, 0.1, 4, 0.01, (v) => v.toFixed(2), (v) => setSetting(run.id, 'scale', v));
+      bindSlider(body, 'Spin', st.spin, -0.8, 0.8, 0.01, (v) => v.toFixed(2), (v) => setSetting(run.id, 'spin', v));
+      bindSlider(body, 'Dots', st.dotSize, 0, 0.4, 0.005, (v) => (v < 0.001 ? 'off' : v.toFixed(3)), (v) => setSetting(run.id, 'dotSize', v));
+      bindSlider(body, 'Dot surface', st.dotLook, 0, 1, 1,
+        (v) => ['Stars — edgeless light', 'Pearl — translucent bubble'][Math.round(v)],
+        (v) => setSetting(run.id, 'dotLook', v));
+      bindSlider(body, 'Colour', st.hue, -0.5, 0.5, 0.01,
+        (v) => (Math.abs(v) < 0.005 ? 'palette' : `${v > 0 ? '+' : ''}${Math.round(v * 360)}°`),
+        (v) => setSetting(run.id, 'hue', v));
+
+      const stop = document.createElement('button');
+      stop.type = 'button';
+      stop.className = 'extstop';
+      stop.textContent = `stop ${name}`;
+      stop.addEventListener('click', () => { deactivate(run.id); onChange('extensions'); });
+      body.appendChild(stop);
+    }
+  };
+  onExtensionsChanged(() => { paintExtensionLayers(); refresh(); });
+  bindings.push(paintExtensionLayers);
 
   // ---- the gallery
   const saved = document.createElement('section');

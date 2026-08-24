@@ -30,7 +30,7 @@ import { armDirection } from './geometry/emitter.js';
 import { FORMS } from './geometry/forms.js';
 import { edgeTrails, isClosed, weld } from './geometry/trails.js';
 import { loadSpriteFolder, resolveSprites, spriteTexture } from './lib/sprites.js';
-import { extensionGeometry, loadExtensionLibrary, activeExtension } from './lib/extensions.js';
+import { extensionFrames, loadExtensionLibrary, MAX_ACTIVE } from './lib/extensions.js';
 import { metatronSpiral, HEXAGONS } from './geometry/metatronSpiral.js';
 import { PrismHalo } from './lib/prism.js';
 import {
@@ -419,14 +419,26 @@ const MAX_STARS = 700;
 const starField = new PrismHalo(MAX_STARS, 'soft');
 rig.add(starField);
 
-// Extensions — contributed maths, drawn like any other layer.
-const EXT_SEGMENTS = 6000;
-const EXT_DOTS = 1200;
-const extGroup = new THREE.Group();
-const extLines = new EnergyLines(EXT_SEGMENTS, EXT_SEGMENTS, { coreOpacity: 0.85, haloOpacity: 0.1 });
-const extDots = new SphereField(EXT_DOTS, { material: pearlMaterial(0.8), segments: [14, 10] });
-extGroup.add(extLines, extDots);
-rig.add(extGroup);
+// Extensions — contributed maths, drawn like any other layer, and up to four
+// of them at once. One slot each: its own linework, its own markers, its own
+// group to spin. Slots are built once and lent out, so starting and stopping
+// an extension costs nothing but a visibility flag.
+const EXT_SEGMENTS = 3000;
+const EXT_DOTS = 900;
+const extSlots = Array.from({ length: MAX_ACTIVE }, () => {
+  const group = new THREE.Group();
+  const lines = new EnergyLines(EXT_SEGMENTS, EXT_SEGMENTS, { coreOpacity: 0.85, haloOpacity: 0.1 });
+  // Markers get the same choice the lattice nodes have. A pearl sphere has a
+  // silhouette and a highlight and reads as a bubble; a billboard has neither
+  // and reads as light. Stars are the default because that is nearly always
+  // what somebody drawing points of a figure actually wants.
+  const dots = new SphereField(EXT_DOTS, { material: pearlMaterial(0.8), segments: [12, 8] });
+  const glow = new PrismHalo(EXT_DOTS, 'soft');
+  group.add(lines, dots, glow);
+  group.visible = false;
+  rig.add(group);
+  return { group, lines, dots, glow, tint: new THREE.Color(), tintAlt: new THREE.Color() };
+});
 
 // Pure geometry — radial emission from the centre.
 const emitterGroup = new THREE.Group();
@@ -543,7 +555,7 @@ const palette = { ring: new THREE.Color(), join: new THREE.Color(), solid: new T
  * shape and moves the layer as a whole.
  */
 const layer = {};
-for (const k of ['rings', 'joins', 'solid', 'poly', 'core', 'merkaba', 'toroid', 'fib', 'emitter', 'ext', 'stars']) {
+for (const k of ['rings', 'joins', 'solid', 'poly', 'core', 'merkaba', 'toroid', 'fib', 'emitter', 'stars']) {
   layer[k] = new THREE.Color();
   layer[`${k}Alt`] = new THREE.Color();
 }
@@ -603,7 +615,6 @@ function applyLook() {
   setLayer('toroid', 1, 0, state.hueToroid);
   setLayer('fib', 2, 0, state.hueFib);
   setLayer('emitter', 2, 0, state.hueEmitter);
-  setLayer('ext', 1, 3, state.hueExt);
   setLayer('stars', 0, 2, state.hueStars);
 
   rings.baseColor.copy(layer.rings);
@@ -643,8 +654,6 @@ function applyLook() {
   merkabaDown.applyTint(layer.merkabaAlt);
   spiralLines.applyTint(layer.fib);
   emRayLines.applyTint(layer.emitter);
-  extLines.applyTint(layer.ext);
-  extDots.baseColor.copy(_pearlTint2.copy(layer.extAlt).lerp(WHITE, wash));
 
   const g = state.glow;
   rings.material.opacity = g;
@@ -2181,66 +2190,100 @@ function updateStars() {
 
 // ---------------------------------------------------------------- extensions
 
-const extPool = Array.from({ length: EXT_SEGMENTS + 8 }, () => new THREE.Vector3());
+const extPool = Array.from({ length: (EXT_SEGMENTS + 8) * MAX_ACTIVE }, () => new THREE.Vector3());
 const extPaths = [];
 const extDotList = [];
 let extClamped = 0;
 
 /**
- * Draw whatever the active extension last produced.
+ * Draw whatever each running extension last produced.
  *
  * The geometry arrives as flat arrays of numbers — the contract is deliberately
  * that narrow, so an extension needs to know nothing about three.js — and is
- * copied into the pooled vectors the linework wants. Nothing is allocated here;
- * the pool is the ceiling, and going over it is reported rather than dropped in
- * silence, the same as the lattice does.
+ * copied into pooled vectors. Nothing is allocated here; the pool is the
+ * ceiling, and going over it is reported rather than dropped in silence.
  */
 function updateExtensions() {
-  extGroup.visible = state.showExt;
   if (!state.showExt) {
-    extLines.setPaths([]);
-    extDots.set([]);
+    for (const slot of extSlots) {
+      slot.group.visible = false;
+      slot.lines.setPaths([]);
+      slot.dots.set([]);
+      slot.glow.count = 0;
+    }
     extClamped = 0;
     return;
   }
 
-  const out = extensionGeometry(clock);
-  if (!out) { extLines.setPaths([]); extDots.set([]); return; }
-
-  extPaths.length = 0;
-  extDotList.length = 0;
+  const frames = extensionFrames(clock);
   extClamped = 0;
-  let n = 0;
+  let cursor = 0;
 
-  for (const path of out.paths) {
-    const count = path.points.length / 3;
-    if (count < 2) continue;
-    if (n + count > extPool.length) { extClamped += count; continue; }
-    const pts = [];
-    for (let i = 0; i < count; i++) {
-      const v = extPool[n++];
-      v.set(path.points[i * 3], path.points[i * 3 + 1], path.points[i * 3 + 2])
-        .multiplyScalar(state.extScale);
-      pts.push(v);
+  for (let i = 0; i < extSlots.length; i++) {
+    const slot = extSlots[i];
+    const frame = frames[i];
+    if (!frame) {
+      slot.group.visible = false;
+      slot.lines.setPaths([]);
+      slot.dots.set([]);
+      slot.glow.count = 0;
+      continue;
     }
-    extPaths.push({ pts, closed: path.closed, fade: 1 });
-  }
 
-  const size = state.extDotSize;
-  if (size > 0.001) {
-    for (const d of out.dots) {
-      if (extDotList.length >= EXT_DOTS) { extClamped++; break; }
-      extDotList.push({
-        pos: _extDot.set(d.x, d.y, d.z).multiplyScalar(state.extScale).clone(),
-        radius: size * d.r,
-        fade: 1,
-      });
+    const { geometry: out, settings } = frame;
+    slot.group.visible = true;
+    slot.group.rotation.z = clock * settings.spin;
+
+    // Each extension carries its own place on the hue circle, so two running
+    // together can be told apart rather than arriving in the same colour.
+    const pal = PALETTES[Math.round(state.palette)];
+    slot.tint.copy(inkColor(pal, 1, state.hue + settings.hue));
+    slot.tintAlt.copy(inkColor(pal, 3, state.hue + settings.hue));
+    slot.lines.applyTint(slot.tint);
+    slot.lines.setRadius(state.lineWidth);
+    slot.lines.setOpacity(state.glow * 0.95, state.halo, state.glow);
+
+    extPaths.length = 0;
+    for (const path of out.paths) {
+      const count = path.points.length / 3;
+      if (count < 2) continue;
+      if (cursor + count > extPool.length) { extClamped += count; continue; }
+      const pts = [];
+      for (let k = 0; k < count; k++) {
+        const v = extPool[cursor++];
+        v.set(path.points[k * 3], path.points[k * 3 + 1], path.points[k * 3 + 2])
+          .multiplyScalar(settings.scale);
+        pts.push(v);
+      }
+      extPaths.push({ pts, closed: path.closed, fade: 1 });
+    }
+    slot.lines.setPaths(extPaths);
+
+    extDotList.length = 0;
+    const size = settings.dotSize;
+    if (size > 0.001) {
+      for (const d of out.dots) {
+        if (extDotList.length >= EXT_DOTS) { extClamped++; break; }
+        extDotList.push({
+          pos: _extDot.set(d.x, d.y, d.z).multiplyScalar(settings.scale).clone(),
+          radius: size * d.r,
+          fade: 1,
+        });
+      }
+    }
+
+    if (Math.round(settings.dotLook) === 0 && extDotList.length) {
+      slot.dots.set([]);
+      slot.glow.tint = slot.tintAlt;
+      slot.glow.material.opacity = state.glow;
+      slot.glow.faceCamera(camera);
+      slot.glow.set(extDotList, 3.4, 1);
+    } else {
+      slot.glow.count = 0;
+      slot.dots.baseColor.copy(slot.tintAlt);
+      slot.dots.set(extDotList);
     }
   }
-
-  extGroup.rotation.z = clock * state.extSpin;
-  extLines.setPaths(extPaths);
-  extDots.set(extDotList);
 }
 
 const _extDot = new THREE.Vector3();
@@ -2528,7 +2571,6 @@ function tick() {
     strandLines[i].updatePulses(clock, ps * 0.7 * (i % 2 === 0 ? 1 : -1), p, style, psz);
   }
   emRayLines.updatePulses(clock, ps * 1.6, p, style, psz);
-  extLines.updatePulses(clock, ps, p, style, psz);
   mspiralLines.updatePulses(clock, ps * 0.6, p, style, psz);
   merkabaUp.updatePulses(clock, ps * 1.1, p, style, psz);
   merkabaDown.updatePulses(clock, -ps * 1.1, p, style, psz);
@@ -2604,7 +2646,8 @@ function tick() {
 /** Every line layer, for the passes that touch all of them. */
 const ALL_LINES = [joinLines, solidLines, rectLines, polyLines, tetherLines,
   coreLines, merkabaUp, merkabaDown, spiralLines, emRayLines, mspiralLines,
-  anchorLines, spokeLines, extLines, ...strandLines];
+  anchorLines, spokeLines, ...strandLines,
+  ...extSlots.map((slot) => slot.lines)];
 
 const vertexHosts = [];
 const EMPTY = [];
@@ -2699,7 +2742,7 @@ async function boot() {
   const BEAM_SPEEDS = [
     [joinLines, 1], [polyLines, 1.4], [solidLines, 1.2], [tetherLines, 2],
     [coreLines, 0.5], [merkabaUp, 1.1], [merkabaDown, -1.1], [spiralLines, 0.8],
-    [emRayLines, 1.6], [mspiralLines, 0.6], [rectLines, 0.6], [extLines, 1],
+    [emRayLines, 1.6], [mspiralLines, 0.6], [rectLines, 0.6],
     [anchorLines, 0.9], [spokeLines, 1.3],
   ];
   for (const [layer, mult] of BEAM_SPEEDS) layer.beamSpeed = mult;

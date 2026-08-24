@@ -51,7 +51,10 @@ statements around it. It is evaluated as an expression.
   it, and because the light walks the whole path rather than each segment, a
   path that turns corners will be traced round them.
 - **`dots`** are markers. `r` is a relative radius, where 1 is the size the
-  panel's own slider is set to.
+  panel's own slider is set to. They are drawn as stars — a hard bright core
+  with diffraction spikes — unless the panel is switched to pearl, so returning
+  a few hundred is a field of light rather than a heap of bubbles. There is a
+  Dots slider per extension, and zero hides them.
 - Both are optional. Return `{ paths: [] , dots: [] }` if there is nothing to
   draw this frame.
 
