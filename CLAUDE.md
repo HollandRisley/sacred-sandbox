@@ -4,9 +4,11 @@ A three.js art piece: sacred geometry in three and four dimensions, rendered as
 glowing linework. Vanilla JS, Vite, no framework, one dependency (`three`).
 Deployed to GitHub Pages on every push to `main`.
 
-`README.md` is the design document — it explains *why* the maths and the visual
-decisions are what they are, and it is worth reading before changing any of
-them. This file is the short version of *how not to break it*.
+`docs/design-notes.md` is the design document — it explains *why* the maths and
+the visual decisions are what they are, and it is worth reading before changing
+any of them. `README.md` is the public introduction and is deliberately short;
+keep it that way, and put new reasoning in the design notes. This file is the
+short version of *how not to break it*.
 
 ## Layout
 
